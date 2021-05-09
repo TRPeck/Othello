@@ -14,6 +14,7 @@ bool cApp::OnInit()
 {
 	wxInitAllImageHandlers();
 	m_frame1 = new cMain();
+	m_frame1->SetDoubleBuffered(true); // this prevents needing to refresh the buttons which go wonky after pressing alt
 	m_frame1->Show();
 
 	return true;

@@ -617,7 +617,7 @@ void cMain::squareClicked(wxCommandEvent& evt)
 	int y = (evt.GetId() - 10000) / nFieldWidth;
 	x--;
 	y--;
-	s1 << moveCount;
+	s1 << movesListCount;
 	OutputDebugStringA(s1.str().c_str());
 	s1.str("");
 
@@ -641,6 +641,7 @@ void cMain::squareClicked(wxCommandEvent& evt)
 					movesListCount++;
 					std::string empty = " ";
 					moves[movesListCount] = empty;
+					movesListCount++;
 					data.push_back(wxVariant(wxString(std::to_string(moveCount))));
 					data.push_back(wxVariant(wxString(getPosition(x, y))));
 					data.push_back(wxVariant(wxString(" ")));
@@ -656,8 +657,7 @@ void cMain::squareClicked(wxCommandEvent& evt)
 					remainingDisks--;
 					data.pop_back();
 					data.push_back(wxVariant(wxString(getPosition(x, y))));
-					moves[movesListCount] = getPosition(x, y);
-					movesListCount++;
+					moves[movesListCount - 1] = getPosition(x, y);
 					//allMoves.pop_back();
 					//allMoves.push_back(data);
 					movesList->DeleteItem(moveCount - reverseCounter++);
@@ -791,10 +791,17 @@ bool cMain::open(wxString filename)
 	//movesList->AppendTextColumn("#");
 	//movesList->AppendTextColumn("Black");
 	//movesList->AppendTextColumn("White");
-	//movesList->DeleteAllItems();
+	movesList->DeleteAllItems();
 	movesListCount = game.getMovesListCount();
+	s1 << movesListCount;
+	OutputDebugStringA(s1.str().c_str());
+	s1.str("");
 	for (int i = 0; i < movesListCount; i++)
 	{
+		s1 << game.getMovesList(i);
+		s1 << " | ";
+		OutputDebugStringA(s1.str().c_str());
+		s1.str("");
 		moves[i] = game.getMovesList(i);
 	}
 	data.clear();
@@ -851,13 +858,16 @@ bool cMain::save(wxString filename)
 	game.setMoveCount(moveCount);
 	game.setReverseCounter(reverseCounter);
 	game.setMovesListCount(movesListCount);
+	s1 << movesListCount;
+	OutputDebugStringA(s1.str().c_str());
+	s1.str("");
 	for (int i = 0; i < movesListCount; i++)
 	{
 		std::string move = moves[i];
-		s1 << move;
+		/*s1 << move;
 		s1 << " ";
 		OutputDebugStringA(s1.str().c_str());
-		s1.str("");
+		s1.str("");*/
 		game.setMovesList(i, move);
 	}
 

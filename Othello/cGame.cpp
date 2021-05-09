@@ -59,6 +59,7 @@ void cGame::setMovesList(int n, std::string m)
 
 void cGame::setMovesListCount(int n)
 {
+	movesListCount = n;
 }
 
 char cGame::getnField(int x, int y)
@@ -110,6 +111,13 @@ bool cGame::save(std::wstring sFile)
 	fwrite(&movesListCount, sizeof(int), 1, f);
 	fwrite(nField, sizeof(char), nWidth * nHeight, f);
 	fwrite(moves, sizeof(std::string), 180, f);
+	for (int i = 0; i < 180; i++)
+	{
+		s1 << moves[i];
+		s1 << " ";
+		OutputDebugStringA(s1.str().c_str());
+		s1.str("");
+	}
 	// TODO - print the list, see what's happening
 	fclose(f);
 
