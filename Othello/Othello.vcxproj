@@ -23,12 +23,14 @@
     <ClInclude Include="cBoardSquare.h" />
     <ClInclude Include="cGame.h" />
     <ClInclude Include="cMain.h" />
+    <ClInclude Include="cSettings.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cApp.cpp" />
     <ClCompile Include="cBoardSquare.cpp" />
     <ClCompile Include="cGame.cpp" />
     <ClCompile Include="cMain.cpp" />
+    <ClCompile Include="cSettings.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

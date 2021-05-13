@@ -3,17 +3,18 @@
 #include "cApp.h"
 
 // TODO - comments mafucka!!!
+// TODO - look into those memory leaks (am i cleaning up pointers properly and in the right spots?)
 
 wxBEGIN_EVENT_TABLE(cMain, wxFrame)
 	EVT_MENU(20001, cMain::onMenuNew)
 	EVT_MENU(20002, cMain::onMenuSave)
 	EVT_MENU(20003, cMain::onMenuOpen)
 	EVT_MENU(20004, cMain::onMenuExit)
+	EVT_MENU(20005, cMain::onMenuPSettings)
 wxEND_EVENT_TABLE()
 
 cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1000, 800))
 {
-	// TODO - add menu bar, fit it into the frame, add some options to it
 	
 	menuBar = new wxMenuBar();
 	this->SetMenuBar(menuBar);
@@ -23,6 +24,10 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 	menuFile->Append(20003, "Open");
 	menuFile->Append(20004, "Exit");
 	menuBar->Append(menuFile, "File");
+
+	auto settings = new wxMenu();
+	settings->Append(20005, "Player Settings");
+	menuBar->Append(settings, "Game");
 
 	auto mainSizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -75,21 +80,21 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 				}
 				else
 				{
-					btn[(j - 1) * nFieldWidth + (i - 1)] = new cBoardSquare(this, 10000 + (j * nFieldWidth + i));
+					btn[(i - 1) * nFieldWidth + (j - 1)] = new cBoardSquare(this, 10000 + ((i-1) * nFieldWidth + (j-1)));
 
 					if (j % 2 == 0)
 					{
-						btn[(j - 1) * nFieldWidth + (i - 1)]->SetBackgroundColour(colour2);
+						btn[(i - 1) * nFieldWidth + (j - 1)]->SetBackgroundColour(colour2);
 					}
 					else
 					{
-						btn[(j - 1) * nFieldWidth + (i - 1)]->SetBackgroundColour(colour1);
+						btn[(i - 1) * nFieldWidth + (j - 1)]->SetBackgroundColour(colour1);
 					}
 
-					grid->Add(btn[(j - 1) * nFieldWidth + (i - 1)], 1, wxEXPAND | wxALL);
-					btn[(j - 1) * nFieldWidth + (i - 1)]->Bind(
+					grid->Add(btn[(i - 1) * nFieldWidth + (j - 1)], 1, wxEXPAND | wxALL);
+					btn[(i - 1) * nFieldWidth + (j - 1)]->Bind(
 						wxEVT_COMMAND_BUTTON_CLICKED, &cMain::squareClicked, this);
-					nField[(j - 1) * nFieldWidth + (i - 1)] = ' ';
+					nField[(i - 1) * nFieldWidth + (j - 1)] = ' ';
 				}
 			}
 			// switch the colours so the next row is opposite and continues the chessboard pattern
@@ -123,18 +128,383 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 cMain::~cMain()
 {
 	delete[]btn;
+	delete[]moves;
+	delete[]nField;
 }
 
-bool cMain::legalMoves(char c)
+int cMain::getConfiguration()
+{
+	return configuration;
+}
+
+void cMain::setConfiguration(int c)
+{
+	configuration = c;
+}
+
+// actually, i'm an idiot, java version works, this checks up. x and y axis are flipped in game development
+std::vector<int> cMain::checkLeft(int x, int y)
+{
+	std::vector<int> flipList;
+	if (y != 0)
+	{
+		y--; // get the next square to the left of the move
+		while (y >= 0) // while we haven't reached the left side of the board
+		{
+			// add coordinates if they contain the other player's pieces
+			if (y != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				y--;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+				// break and clear if reached the end of the board and its not the current player's disk 
+			else if (y == 0 && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+std::vector<int> cMain::checkRight(int x, int y)
+{
+	std::vector<int> flipList;
+	if (y != nFieldWidth - 1)
+	{
+		y++; // get the next square to the left of the move
+		while (y <= nFieldWidth - 1) // while we haven't reached the left side of the board
+		{
+			// add coordinates if they contain the other player's pieces
+			if (y != nFieldWidth - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] !=
+				' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				y++;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+			else if (y == nFieldWidth - 1 && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+std::vector<int> cMain::checkUp(int x, int y)
+{
+	std::vector<int> flipList;
+	if (x != 0)
+	{
+		x--; // get the next square to the left of the move
+		while (x >= 0) // while we haven't reached the left side of the board
+		{
+			// add coordinates if they contain the other player's pieces
+			if (x != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				x--;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+			else if (x == 0 && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+std::vector<int> cMain::checkDown(int x, int y)
+{
+	std::vector<int> flipList;
+	if (x != nFieldHeight - 1)
+	{
+		x++; 
+		while (x <= nFieldHeight - 1) 
+		{
+			// add coordinates if they contain the other player's pieces
+			if (x != nFieldHeight - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				x++;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+			else if (x == nFieldHeight - 1 && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+std::vector<int> cMain::checkUpLeft(int x, int y)
+{
+	std::vector<int> flipList;
+	if (x != 0 && y != 0)
+	{
+		x--;
+		y--;
+		while (x >= 0 && y >= 0)
+		{
+			// add coordinates if they contain the other player's pieces
+			if (x != 0 && y != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				x--;
+				y--;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+			else if ((x == 0 || y == 0) && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+std::vector<int> cMain::checkUpRight(int x, int y)
+{
+	std::vector<int> flipList;
+	if (x != 0 && y != nFieldWidth - 1)
+	{
+		x--;
+		y++;
+		while (x >= 0 && y <= nFieldWidth - 1)
+		{
+			// add coordinates if they contain the other player's pieces
+			if (x != 0 && y != nFieldWidth - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth
+				+ y] != ' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				x--;
+				y++;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+			else if ((x == 0 || y == nFieldWidth - 1) && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+std::vector<int> cMain::checkDownLeft(int x, int y)
+{
+	std::vector<int> flipList;
+	if (x != nFieldHeight - 1 && y != 0)
+	{
+		x++;
+		y--;
+		while (x <= nFieldHeight - 1 && y >= 0)
+		{
+			// add coordinates if they contain the other player's pieces
+			if (x != nFieldHeight - 1 && y != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x *
+				nFieldWidth + y] != ' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				x++;
+				y--;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+			else if ((x == nFieldHeight - 1 || y == 0) && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+std::vector<int> cMain::checkDownRight(int x, int y)
+{
+	std::vector<int> flipList;
+	if (x != nFieldHeight - 1 && y != nFieldWidth - 1)
+	{
+		x++;
+		y++;
+		while (x <= nFieldHeight - 1 && y <= nFieldWidth - 1)
+		{
+			// add coordinates if they contain the other player's pieces
+			if (x != nFieldHeight - 1 && y != nFieldWidth - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[
+				x * nFieldWidth + y] != ' ')
+			{
+				flipList.push_back(x * nFieldWidth + y);
+				x++;
+				y++;
+			}
+				// break and clear the sublist if an empty square is encountered
+			else if (nField[x * nFieldWidth + y] == ' ')
+			{
+				flipList.clear();
+				break;
+			}
+			// clear and break at edge of board if that square isn't the player's
+			else if ((x == nFieldHeight - 1 || y == nFieldWidth - 1) && nField[x * nFieldWidth + y] != currentPlayer)
+			{
+				flipList.clear();
+				break;
+			}
+				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
+			else if (nField[x * nFieldWidth + y] == currentPlayer)
+			{
+				break;
+			}
+		}
+	}
+	return flipList;
+}
+
+// NOTE - could probably merge these two legal moves functions
+bool cMain::legalMoves()
 {
 	std::vector<int> flipList;
 	std::vector<int> sub;
+	std::vector<int> legalMoves;
 
-	for (int y = 0; y < nFieldWidth; y++)
+	for (int x = 0; x < nFieldWidth; x++)
 	{
-		for (int x = 0; x < nFieldHeight; x++)
+		for (int y = 0; y < nFieldHeight; y++)
 		{
-			if (nField[y * nFieldWidth + x] == ' ')
+			if (nField[x * nFieldWidth + y] == ' ')
+			{
+				/*s1 << "x * nField + y: " << x * nFieldWidth + y << " | ";
+				OutputDebugStringA(s1.str().c_str());
+				s1.str("");*/
+				// TODO - multithreading
+				sub = checkLeft(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+				sub = checkRight(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+				sub = checkUp(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+				sub = checkDown(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+				sub = checkUpLeft(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+				sub = checkUpRight(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+				sub = checkDownLeft(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+				sub = checkDownRight(x, y);
+				flipList.insert(flipList.end(), sub.begin(), sub.end());
+
+				if (!flipList.empty())
+				{
+					legalMoves.push_back(x * nFieldWidth + y);
+					flipList.clear();
+				}
+			}
+		}
+	}
+
+	if (!legalMoves.empty())
+	{
+		/*s1 << "legal moves: ";
+		for (auto i = 0; i < legalMoves.size(); i++)
+		{
+			s1 << legalMoves[i] << " | ";
+			OutputDebugStringA(s1.str().c_str());
+			s1.str("");
+		}*/
+		return true;
+	}
+	return false;
+}
+
+std::vector<int> cMain::getLegalMoves()
+{
+	std::vector<int> flipList;
+	std::vector<int> sub;
+	std::vector<int> legalMoves;
+
+	for (int x = 0; x < nFieldWidth; x++)
+	{
+		for (int y = 0; y < nFieldHeight; y++)
+		{
+			if (nField[x * nFieldWidth + y] == ' ')
 			{
 				sub = checkLeft(x, y);
 				flipList.insert(flipList.end(), sub.begin(), sub.end());
@@ -152,15 +522,17 @@ bool cMain::legalMoves(char c)
 				flipList.insert(flipList.end(), sub.begin(), sub.end());
 				sub = checkDownRight(x, y);
 				flipList.insert(flipList.end(), sub.begin(), sub.end());
+
+				if (!flipList.empty())
+				{
+					legalMoves.push_back(x * nFieldWidth + y);
+					flipList.clear();
+				}
 			}
 		}
 	}
 
-	if (!flipList.empty())
-	{
-		return true;
-	}
-	return false;
+	return legalMoves;
 }
 
 bool cMain::checkMove(int x, int y)
@@ -186,323 +558,129 @@ bool cMain::checkMove(int x, int y)
 
 	if (!flipList.empty())
 	{
+		/*s1 << currentPlayer << ":true ";
+		OutputDebugStringA(s1.str().c_str());
+		s1.str("");*/
 		for (auto i = 0; i < flipList.size(); i++)
 		{
 			nField[flipList[i]] = currentPlayer;
 			btn[flipList[i]]->setSquareStatus(currentPlayer);
 			btn[flipList[i]]->Enable(false);
+			s1 << "disk flipped: " << flipList[i] << " | ";
+			OutputDebugStringA(s1.str().c_str());
+			s1.str("");
 		}
 		return true;
 	}
+	/*s1 << currentPlayer << ":false ";
+	OutputDebugStringA(s1.str().c_str());
+	s1.str("");*/
 	return false;
 }
 
-// actually, i'm an idiot, java version works, this checks up. x and y axis are flipped in game development
-std::vector<int> cMain::checkLeft(int x, int y)
+void cMain::makeMove(int x, int y)
 {
-	std::vector<int> flipList;
-	if (y != 0)
+	/*s1 << "move made: " << x * nFieldWidth + y << " | ";
+	OutputDebugStringA(s1.str().c_str());
+	s1.str("");*/
+	// BUG - these will cause a crash if a player's turn is skipped due to attempting to pop an empty vector
+	if (currentPlayer == 'B' && whiteLegalMoves)
 	{
-		y--; // get the next square to the left of the move
-		while (y >= 0) // while we haven't reached the left side of the board
-		{
-			// add coordinates if they contain the other player's pieces
-			if (y != 0 && nField[y * nFieldWidth + x] != currentPlayer && nField[y * nFieldWidth + x] != ' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				y--;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-				// break and clear if reached the end of the board and its not the current player's disk 
-			else if (y == 0 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
+		nField[x * nFieldWidth + y] = 'B';
+		btn[x * nFieldWidth + y]->paintNow();
+		currentPlayer = 'W';
+		btn[x * nFieldWidth + y]->setSquareStatus('B');
+		remainingDisks--;
+		moveCount++;
+		moves[movesListCount] = std::to_string(moveCount);
+		movesListCount++;
+		moves[movesListCount] = getPosition(x, y);
+		movesListCount++;
+		std::string empty = " ";
+		moves[movesListCount] = empty;
+		movesListCount++;
+		data.push_back(wxVariant(wxString(std::to_string(moveCount))));
+		data.push_back(wxVariant(wxString(getPosition(x, y))));
+		data.push_back(wxVariant(wxString(" ")));
+		movesList->AppendItem(data);
+		//allMoves.push_back(data);
 	}
-	return flipList;
-}
-
-std::vector<int> cMain::checkRight(int x, int y)
-{
-	std::vector<int> flipList;
-	if (y != nFieldWidth - 1)
+	else if (currentPlayer == 'B' && !whiteLegalMoves)
 	{
-		y++; // get the next square to the left of the move
-		while (y <= nFieldWidth - 1) // while we haven't reached the left side of the board
-		{
-			// add coordinates if they contain the other player's pieces
-			if (y != nFieldWidth - 1 && nField[y * nFieldWidth + x] != currentPlayer && nField[y * nFieldWidth + x] !=
-				' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				y++;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-			else if (y == nFieldWidth - 1 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
+		data.pop_back();
+		data.push_back(wxVariant(wxString("N/A")));
+		movesList->AppendItem(data);
+		data.clear();
+		
+		nField[x * nFieldWidth + y] = 'B';
+		btn[x * nFieldWidth + y]->paintNow();
+		currentPlayer = 'W';
+		btn[x * nFieldWidth + y]->setSquareStatus('B');
+		remainingDisks--;
+		moveCount++;
+		moves[movesListCount] = std::to_string(moveCount);
+		movesListCount++;
+		moves[movesListCount] = getPosition(x, y);
+		movesListCount++;
+		std::string empty = " ";
+		moves[movesListCount] = empty;
+		movesListCount++;
+		data.push_back(wxVariant(wxString(std::to_string(moveCount))));
+		data.push_back(wxVariant(wxString(getPosition(x, y))));
+		data.push_back(wxVariant(wxString(" ")));
+		movesList->AppendItem(data);
 	}
-	return flipList;
-}
-
-std::vector<int> cMain::checkUp(int x, int y)
-{
-	std::vector<int> flipList;
-	if (x != 0)
+	else if (currentPlayer == 'W' && blackLegalMoves)
 	{
-		x--; // get the next square to the left of the move
-		while (x >= 0) // while we haven't reached the left side of the board
-		{
-			// add coordinates if they contain the other player's pieces
-			if (x != 0 && nField[y * nFieldWidth + x] != currentPlayer && nField[y * nFieldWidth + x] != ' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				x--;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-			else if (x == 0 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
+		nField[x * nFieldWidth + y] = 'W';
+		btn[x * nFieldWidth + y]->paintNow();
+		currentPlayer = 'B';
+		btn[x * nFieldWidth + y]->setSquareStatus('W');
+		remainingDisks--;
+		data.pop_back();
+		data.push_back(wxVariant(wxString(getPosition(x, y))));
+		moves[movesListCount - 1] = getPosition(x, y);
+		//allMoves.pop_back();
+		//allMoves.push_back(data);
+		movesList->DeleteItem(moveCount - reverseCounter++);
+		movesList->AppendItem(data);
+		data.clear();
+		moveCount++;
 	}
-	return flipList;
-}
-
-std::vector<int> cMain::checkDown(int x, int y)
-{
-	std::vector<int> flipList;
-	if (x != nFieldHeight - 1)
+	else if (currentPlayer == 'W' && !blackLegalMoves)
 	{
-		x++; // get the next square to the left of the move
-		while (x <= nFieldHeight - 1) // while we haven't reached the left side of the board
-		{
-			// add coordinates if they contain the other player's pieces
-			if (x != nFieldHeight - 1 && nField[y * nFieldWidth + x] != currentPlayer && nField[y * nFieldWidth + x] !=
-				' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				x++;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-			else if (x == nFieldHeight - 1 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
+		data.push_back(wxVariant(wxString(std::to_string(moveCount))));
+		data.push_back(wxVariant(wxString("N/A")));
+		
+		nField[x * nFieldWidth + y] = 'W';
+		btn[x * nFieldWidth + y]->paintNow();
+		currentPlayer = 'B';
+		btn[x * nFieldWidth + y]->setSquareStatus('W');
+		remainingDisks--;
+		data.push_back(wxVariant(wxString(getPosition(x, y))));
+		moves[movesListCount - 1] = getPosition(x, y);
+		movesList->AppendItem(data);
+		data.clear();
+		moveCount++;
 	}
-	return flipList;
-}
-
-std::vector<int> cMain::checkUpLeft(int x, int y)
-{
-	std::vector<int> flipList;
-	if (x != 0 && y != 0)
-	{
-		x--;
-		y--;
-		while (x >= 0 && y >= 0)
-		{
-			// add coordinates if they contain the other player's pieces
-			if (x != 0 && y != 0 && nField[y * nFieldWidth + x] != currentPlayer && nField[y * nFieldWidth + x] != ' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				x--;
-				y--;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-			else if (x == 0 || y == 0 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
-	}
-	return flipList;
-}
-
-std::vector<int> cMain::checkUpRight(int x, int y)
-{
-	std::vector<int> flipList;
-	if (x != 0 && y != nFieldWidth - 1)
-	{
-		x--;
-		y++;
-		while (x >= 0 && y <= nFieldWidth - 1)
-		{
-			// add coordinates if they contain the other player's pieces
-			if (x != 0 && y != nFieldWidth - 1 && nField[y * nFieldWidth + x] != currentPlayer && nField[y * nFieldWidth
-				+ x] != ' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				x--;
-				y++;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-			else if (x == 0 || y == nFieldWidth - 1 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
-	}
-	return flipList;
-}
-
-std::vector<int> cMain::checkDownLeft(int x, int y)
-{
-	std::vector<int> flipList;
-	if (x != nFieldHeight - 1 && y != 0)
-	{
-		x++;
-		y--;
-		while (x <= nFieldHeight - 1 && y >= 0)
-		{
-			// add coordinates if they contain the other player's pieces
-			if (x != nFieldHeight - 1 && y != 0 && nField[y * nFieldWidth + x] != currentPlayer && nField[y *
-				nFieldWidth + x] != ' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				x++;
-				y--;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-			else if (x == nFieldHeight - 1 || y == 0 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
-	}
-	return flipList;
-}
-
-std::vector<int> cMain::checkDownRight(int x, int y)
-{
-	std::vector<int> flipList;
-	if (x != nFieldHeight - 1 && y != nFieldWidth - 1)
-	{
-		x++;
-		y++;
-		while (x <= nFieldHeight - 1 && y <= nFieldWidth - 1)
-		{
-			// add coordinates if they contain the other player's pieces
-			if (x != nFieldHeight - 1 && y != nFieldWidth - 1 && nField[y * nFieldWidth + x] != currentPlayer && nField[
-				y * nFieldWidth + x] != ' ')
-			{
-				flipList.push_back(y * nFieldWidth + x);
-				x++;
-				y++;
-			}
-				// break and clear the sublist if an empty square is encountered
-			else if (nField[y * nFieldWidth + x] == ' ')
-			{
-				flipList.clear();
-				break;
-			}
-			else if (x == nFieldHeight - 1 || y == nFieldWidth - 1 && nField[y * nFieldWidth + x] != currentPlayer)
-			{
-				flipList.clear();
-				break;
-			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
-			else if (nField[y * nFieldWidth + x] == currentPlayer)
-			{
-				break;
-			}
-		}
-	}
-	return flipList;
+	btn[x * nFieldWidth + y]->Enable(false);
+	btn[x * nFieldWidth + y]->GetParent()->Refresh();
+	/*s1 << "status: " << nField[x * nFieldWidth + y] << " | ";
+	OutputDebugStringA(s1.str().c_str());
+	s1.str("");*/
 }
 
 void cMain::countDisks()
 {
-	for (int y = 0; y < nFieldWidth; y++)
+	for (int x = 0; x < nFieldWidth; x++)
 	{
-		for (int x = 0; x < nFieldHeight; x++)
+		for (int y = 0; y < nFieldHeight; y++)
 		{
-			if (nField[y * nFieldWidth + x] == 'B')
+			if (nField[x * nFieldWidth + y] == 'B')
 			{
 				scoreCount[0]++;
 			}
-			else if (nField[y * nFieldWidth + x] == 'W')
+			else if (nField[x * nFieldWidth + y] == 'W')
 			{
 				scoreCount[1]++;
 			}
@@ -548,26 +726,28 @@ std::string cMain::getPosition(int x, int y)
 bool cMain::checkEndGame()
 {
 	// if the board is full or no legal moves, the game is over
-	if (remainingDisks == 0 || (!legalMoves('B') && !legalMoves('W')))
+	if (remainingDisks == 0 || (!blackLegalMoves && !whiteLegalMoves))
 	{
 		countDisks();
 		if (scoreCount[0] > scoreCount[1])
 		{
-			wxMessageBox("BLACK: " + std::to_string(scoreCount[0]) + " WHITE: " + std::to_string(scoreCount[0]) +
+			wxMessageBox("BLACK: " + std::to_string(scoreCount[0]) + " WHITE: " + std::to_string(scoreCount[1]) +
 				" . BLACK WINS.");
 		}
 		else if (scoreCount[0] < scoreCount[1])
 		{
-			wxMessageBox("BLACK: " + std::to_string(scoreCount[0]) + " WHITE: " + std::to_string(scoreCount[0]) +
+			wxMessageBox("BLACK: " + std::to_string(scoreCount[0]) + " WHITE: " + std::to_string(scoreCount[1]) +
 				" . WHITE WINS.");
 		}
 		else
 		{
-			wxMessageBox("BLACK: " + std::to_string(scoreCount[0]) + " WHITE: " + std::to_string(scoreCount[0]) +
+			wxMessageBox("BLACK: " + std::to_string(scoreCount[0]) + " WHITE: " + std::to_string(scoreCount[1]) +
 				" . DRAW.");
 		}
+
+		// REVIEW - probably be better to not just automatically reset the game here. can't view the results this way.
 		// Reset game
-		currentPlayer = 'B';
+		/*currentPlayer = 'B';
 		remainingDisks = 60;
 		scoreCount[0] = 0;
 		scoreCount[1] = 0;
@@ -578,10 +758,10 @@ bool cMain::checkEndGame()
 		{
 			for (int j = 0; j < nFieldHeight; j++)
 			{
-				nField[j * nFieldWidth + i] = ' ';
-				btn[j * nFieldWidth + i]->setSquareStatus(' ');
-				btn[j * nFieldWidth + i]->Refresh();
-				btn[j * nFieldWidth + i]->Enable(true);
+				nField[i * nFieldWidth + j] = ' ';
+				btn[i * nFieldWidth + j]->setSquareStatus(' ');
+				btn[i * nFieldWidth + j]->Refresh();
+				btn[i * nFieldWidth + j]->Enable(true);
 			}
 		}
 		// set initial four tiles in center 45 46 54 55
@@ -596,11 +776,13 @@ bool cMain::checkEndGame()
 		nField[27] = 'W';
 		nField[28] = 'B';
 		nField[35] = 'B';
-		nField[36] = 'W';
+		nField[36] = 'W';*/
 		return true;
 	}
 	return false;
 }
+
+// TODO - seems skip is used wrong. should set it to false for all of these as per the docs
 
 void cMain::squareClicked(wxCommandEvent& evt)
 {
@@ -611,80 +793,172 @@ void cMain::squareClicked(wxCommandEvent& evt)
 	// if endgame, display results and reset
 	// if not, switch the current player
 
-	//checkEndGame();
+	checkEndGame();
 
-	int x = (evt.GetId() - 10000) % nFieldWidth;
-	int y = (evt.GetId() - 10000) / nFieldWidth;
-	x--;
-	y--;
-	s1 << movesListCount;
+	int x = (evt.GetId() - 10000) / nFieldWidth;
+	int y = (evt.GetId() - 10000) % nFieldWidth;
+
+	/*s1 << "x: " << x << ", y: " << y;
 	OutputDebugStringA(s1.str().c_str());
-	s1.str("");
+	s1.str("");*/
 
-	if (legalMoves(currentPlayer))
+	// TODO - logic for each player1 + player2 configuration
+	switch (configuration)
 	{
-		if (btn[y * nFieldWidth + x]->getSquareStatus() == ' ')
+	case 0:			// player/player
+		if (legalMoves())
 		{
-			if (checkMove(x, y))
+			if (btn[x * nFieldWidth + y]->getSquareStatus() == ' ')
 			{
-				if (currentPlayer == 'B')
+				if (checkMove(x, y))
 				{
-					nField[y * nFieldWidth + x] = 'B';
-					btn[y * nFieldWidth + x]->paintNow();
-					currentPlayer = 'W';
-					btn[y * nFieldWidth + x]->setSquareStatus('B');
-					remainingDisks--;
-					moveCount++;
-					moves[movesListCount] = std::to_string(moveCount);
-					movesListCount++;
-					moves[movesListCount] = getPosition(x, y);
-					movesListCount++;
-					std::string empty = " ";
-					moves[movesListCount] = empty;
-					movesListCount++;
-					data.push_back(wxVariant(wxString(std::to_string(moveCount))));
-					data.push_back(wxVariant(wxString(getPosition(x, y))));
-					data.push_back(wxVariant(wxString(" ")));
-					movesList->AppendItem(data);
-					//allMoves.push_back(data);
+					makeMove(x, y);
 				}
-				else
-				{
-					nField[y * nFieldWidth + x] = 'W';
-					btn[y * nFieldWidth + x]->paintNow();
-					currentPlayer = 'B';
-					btn[y * nFieldWidth + x]->setSquareStatus('W');
-					remainingDisks--;
-					data.pop_back();
-					data.push_back(wxVariant(wxString(getPosition(x, y))));
-					moves[movesListCount - 1] = getPosition(x, y);
-					//allMoves.pop_back();
-					//allMoves.push_back(data);
-					movesList->DeleteItem(moveCount - reverseCounter++);
-					movesList->AppendItem(data);
-					data.clear();
-					moveCount++;
-				}
-				btn[y * nFieldWidth + x]->Enable(false);
 			}
-		}
 
-		btn[y * nFieldWidth + x]->GetParent()->Refresh();
-	}
-	else
-	{
-		// TODO - set moves list appropriately for skipped turns
-		wxMessageBox("No legal moves. Passing turn to other player.");
-		if (currentPlayer == 'B')
-		{
-			currentPlayer = 'W';
+			// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
+			// by the other player's move. if this isn't the case, this code will be skipped anyway.
+			if (!blackLegalMoves || !whiteLegalMoves)
+			{
+				blackLegalMoves = true;
+				whiteLegalMoves = true;
+			}
 		}
 		else
 		{
-			currentPlayer = 'B';
+			// TODO - set moves list appropriately for skipped turns
+			wxMessageBox("No legal moves. Passing turn to other player.");
+			if (currentPlayer == 'B')
+			{
+				currentPlayer = 'W';
+				blackLegalMoves = false;
+			}
+			else
+			{
+				currentPlayer = 'B';
+				whiteLegalMoves = false;
+			}
 		}
+		break;
+	case 1:			// player/weak ai
+		// TODO - gotta handle this slightly different for the case where a player clicks an invalid square.
+		if (currentPlayer == 'B')
+		{
+			if (legalMoves())
+			{
+				if (btn[x * nFieldWidth + y]->getSquareStatus() == ' ')
+				{
+					//s1 << checkMove(x, y) << " ";
+					//OutputDebugStringA(s1.str().c_str());
+					if (checkMove(x, y))
+					{
+						makeMove(x, y);
+					}
+				}
+
+				if (legalMoves())
+				{
+					weakAIMove();
+
+					// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
+					// by the other player's move. if this isn't the case, this code will be skipped anyway.
+					if (!blackLegalMoves || !whiteLegalMoves)
+					{
+						blackLegalMoves = true;
+						whiteLegalMoves = true;
+					}
+				}
+				else
+				{
+					currentPlayer = 'B';
+					whiteLegalMoves = false;
+				}
+
+				// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
+				// by the other player's move. if this isn't the case, this code will be skipped anyway.
+				if (!blackLegalMoves || !whiteLegalMoves)
+				{
+					blackLegalMoves = true;
+					whiteLegalMoves = true;
+				}
+			}
+			else
+			{
+				// TODO - set moves list appropriately for skipped turns
+				wxMessageBox("No legal moves. Passing turn to other player.");
+				currentPlayer = 'W';
+				blackLegalMoves = false;
+
+				if (legalMoves())
+				{
+					weakAIMove();
+
+					// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
+					// by the other player's move. if this isn't the case, this code will be skipped anyway.
+					if (!blackLegalMoves || !whiteLegalMoves)
+					{
+						blackLegalMoves = true;
+						whiteLegalMoves = true;
+					}
+				}
+				else
+				{
+					currentPlayer = 'B';
+					whiteLegalMoves = false;
+				}
+			}
+		}
+		break;
+	case 2:			// weak ai/player
+		break;
+	case 3:			// weak ai/weak ai NOTE - probably don't need this since we are handling it in the other function
+		break;
 	}
-	evt.Skip();
+
+	
+	evt.Skip(false);
+}
+
+void cMain::weakAIMove()
+{
+	std::vector<int> movesVector = getLegalMoves();
+
+	srand(time(NULL));
+
+	int x = 0;
+	int y = 0;
+
+	int num = rand() % movesVector.size();
+	int move = movesVector[num];
+	/*for (auto i = 0; i < movesVector.size(); i++)
+	{
+		s1 << "move: " << movesVector[i] << " ";
+		OutputDebugStringA(s1.str().c_str());
+		s1.str("\n");
+	}*/
+
+	// s1 << move;
+	// OutputDebugStringA(s1.str().c_str());
+	// s1.str("\n");
+
+	x = move / nFieldWidth;
+	y = move % nFieldWidth;
+
+	// s1 << "x: " << x << ", y: " << y;
+	// OutputDebugStringA(s1.str().c_str());
+	// s1.str("\n");
+
+	
+	/*if (btn[y * nFieldWidth + x]->getSquareStatus() == ' ')
+	{
+		if (checkMove(x, y))
+		{
+			makeMove(x, y);
+		}
+	}*/
+
+	checkMove(x, y);
+	makeMove(x, y);
 }
 
 void cMain::onMenuNew(wxCommandEvent& evt)
@@ -703,10 +977,10 @@ void cMain::onMenuNew(wxCommandEvent& evt)
 	{
 		for (int j = 0; j < nFieldHeight; j++)
 		{
-			nField[j * nFieldWidth + i] = ' ';
-			btn[j * nFieldWidth + i]->setSquareStatus(' ');
-			btn[j * nFieldWidth + i]->Refresh();
-			btn[j * nFieldWidth + i]->Enable(true);
+			nField[i * nFieldWidth + j] = ' ';
+			btn[i * nFieldWidth + j]->setSquareStatus(' ');
+			btn[i * nFieldWidth + j]->Refresh();
+			btn[i * nFieldWidth + j]->Enable(true);
 		}
 	}
 	btn[27]->setSquareStatus('W');
@@ -725,7 +999,7 @@ void cMain::onMenuNew(wxCommandEvent& evt)
 	nField[28] = 'B';
 	nField[35] = 'B';
 	nField[36] = 'W';
-	evt.Skip();
+	evt.Skip(false);
 }
 
 void cMain::onMenuOpen(wxCommandEvent& evt)
@@ -740,7 +1014,7 @@ void cMain::onMenuOpen(wxCommandEvent& evt)
 		static_cast<cMain*>(wxGetApp().getFrame())->open(dlg.GetPath());
 		wxGetApp().getFrame()->Refresh();
 	}
-	evt.Skip();
+	evt.Skip(false);
 }
 
 void cMain::onMenuSave(wxCommandEvent& evt)
@@ -757,7 +1031,47 @@ void cMain::onMenuSave(wxCommandEvent& evt)
 void cMain::onMenuExit(wxCommandEvent& evt)
 {
 	Close();
-	evt.Skip();
+	evt.Skip(false);
+}
+
+void cMain::onMenuPSettings(wxCommandEvent& evt)
+{
+	settings = new cSettings(wxT("Player Settings"), configuration);
+	settings->Show();
+	evt.Skip(false);
+
+	// TODO - test this
+	if (configuration == 3)
+	{
+		while (!checkEndGame())
+		{
+			if (legalMoves())
+			{
+				weakAIMove();
+
+				// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
+				// by the other player's move. if this isn't the case, this code will be skipped anyway.
+				if (!blackLegalMoves || !whiteLegalMoves)
+				{
+					blackLegalMoves = true;
+					whiteLegalMoves = true;
+				}
+			}
+			else
+			{
+				if (currentPlayer == 'B')
+				{
+					currentPlayer = 'W';
+					blackLegalMoves = false;
+				}
+				else
+				{
+					currentPlayer = 'B';
+					whiteLegalMoves = false;
+				}
+			}
+		}
+	}
 }
 
 // TODO - implement opening a saved game
@@ -779,8 +1093,8 @@ bool cMain::open(wxString filename)
 		for (int j = 0; j < game.nHeight; j++)
 		{
 			char cell = game.getnField(i, j);
-			btn[j * nFieldWidth + i]->setSquareStatus(cell);
-			nField[j * nFieldWidth + i] = cell;
+			btn[i * nFieldWidth + j]->setSquareStatus(cell);
+			nField[i * nFieldWidth + j] = cell;
 		}
 	}
 	currentPlayer = game.getCurrentPlayer();
@@ -848,7 +1162,10 @@ bool cMain::save(wxString filename)
 	{
 		for (int j = 0; j < game.nHeight; j++)
 		{
-			char cell = nField[j * game.nWidth + i];
+			char cell = nField[i * game.nWidth + j];
+			// TODO - check if things like this should be changed. well, they probably should, could be fucked now after fixing the hack
+			// TODO - maybe not. wait, maybe yes. x and y are swapped often in computer graphics and in this program. but i don't think
+			// TODO - it matters because we are now handling them properly in the corresponding functions
 			game.setnField(i, j, cell);
 		}
 	}

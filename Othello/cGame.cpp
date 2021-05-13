@@ -11,6 +11,8 @@ cGame::cGame()
 
 cGame::~cGame()
 {
+	delete[]nField;
+	delete[]moves;
 }
 
 void cGame::create()
@@ -29,7 +31,7 @@ void cGame::create()
 
 void cGame::setnField(int x, int y, char c)
 {
-	nField[y * nWidth + x] = c;
+	nField[x * nWidth + y] = c;
 }
 
 void cGame::setCurrentPlayer(char c)
@@ -64,7 +66,7 @@ void cGame::setMovesListCount(int n)
 
 char cGame::getnField(int x, int y)
 {
-	return nField[y * nWidth + x];
+	return nField[x * nWidth + y];
 }
 
 char cGame::getCurrentPlayer()
