@@ -3,7 +3,8 @@
 #include "cApp.h"
 
 // TODO - comments mafucka!!!
-// TODO - look into those memory leaks (am i cleaning up pointers properly and in the right spots?)
+// TODO - refactor to follow proper coding conventions
+// TODO - general cleanup
 
 wxBEGIN_EVENT_TABLE(cMain, wxFrame)
 	EVT_MENU(20001, cMain::onMenuNew)
@@ -11,11 +12,12 @@ wxBEGIN_EVENT_TABLE(cMain, wxFrame)
 	EVT_MENU(20003, cMain::onMenuOpen)
 	EVT_MENU(20004, cMain::onMenuExit)
 	EVT_MENU(20005, cMain::onMenuPSettings)
+	EVT_GRID_CELL_LEFT_CLICK(cMain::getState)
+	EVT_SIZE(cMain::windowResized)
 wxEND_EVENT_TABLE()
 
 cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1000, 800))
-{
-	
+{	
 	menuBar = new wxMenuBar();
 	this->SetMenuBar(menuBar);
 	auto menuFile = new wxMenu();
@@ -29,44 +31,64 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 	settings->Append(20005, "Player Settings");
 	menuBar->Append(settings, "Game");
 
-	auto mainSizer = new wxBoxSizer(wxHORIZONTAL);
+	mainSizer = new wxBoxSizer(wxHORIZONTAL);
 
 	// NOTE - probably should have the grid inside a panel like this. wasn't working though, possibly due to the size.
 	//wxPanel* gamePanel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(700, 600));
-	auto infoPanel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(300, 600));
+	infoPanel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(300, 600));
 	infoPanel->SetBackgroundColour(wxColour(100, 200, 100));
 	auto infoPanelSizer = new wxBoxSizer(wxVERTICAL);
 
-	movesList = new wxDataViewListCtrl(infoPanel, wxID_ANY, wxDefaultPosition, wxSize(275, 560));
-	movesList->AppendTextColumn("#");
-	movesList->AppendTextColumn("Black");
-	movesList->AppendTextColumn("White");
+	movesList = new wxGrid(infoPanel, wxID_ANY, wxDefaultPosition, wxSize(275, 560));
+	movesList->CreateGrid(0, 2);
+	movesList->SetColLabelValue(0, wxString("Black"));
+	movesList->SetColLabelValue(1, wxString("White"));
+	movesList->EnableEditing(false);
+	movesList->SetCellHighlightColour(wxColour(173, 216, 230));
+	movesList->SetCellHighlightPenWidth(3);
+	//movesList->SetCellHighlightPenWidth(0);
+	movesList->Layout();
 
+	// NOTE - wxgrid doesn't seem to expand properly. actually we don't want it to expand. just to fill its space.
 	infoPanelSizer->Add(movesList, 1, wxEXPAND);
 
 	btn = new cBoardSquare*[nFieldWidth * nFieldHeight];
+	// NOTE - with how this sizers elements and the window are sized, things get pretty stretched out when we maximize 
 	auto grid = new wxFlexGridSizer(nFieldWidth + 2, nFieldHeight + 2, 0, 0);
+	for (int i = 1; i < 9; i++)
+	{
+		grid->AddGrowableRow(i, 1);
+		grid->AddGrowableCol(i, 1);
+	}
 	nField = new char[nFieldWidth * nFieldHeight];
 	moves = new std::string[180];
 
-	colour1 = wxColour(213, 217, 143);
-	colour2 = wxColour(128, 107, 6);
+	this->SetBackgroundColour(*wxBLACK);
 
 	for (int i = 0; i < nFieldWidth + 2; i++)
 	{
 		if (i == 0 || i == 9)
 		{
 			auto text = new wxStaticText(this, wxID_ANY, " ");
-			grid->Add(text, wxEXPAND | wxALL);
+			text->SetForegroundColour(*wxWHITE);
+			
+			/*s1 << text->GetFont().GetNativeFontInfoUserDesc();
+			OutputDebugStringA(s1.str().c_str());
+			s1.str("");*/
+			grid->Add(text, 0, wxEXPAND | wxALL, 2);
 			for (int x = 1; x < 9; x++)
 			{
 				int n = x + 96;
 				char rank = n;
 				auto text = new wxStaticText(this, wxID_ANY, rank);
-				grid->Add(text, wxEXPAND | wxALL, wxALIGN_CENTRE_HORIZONTAL);
+				text->SetForegroundColour(*wxWHITE);
+				//text->Set
+				grid->Add(text, 0, wxEXPAND | wxALL | wxALIGN_CENTRE_HORIZONTAL, 2);
 			}
 			auto text2 = new wxStaticText(this, wxID_ANY, " ");
-			grid->Add(text2, wxEXPAND | wxALL);
+			grid->Add(text2, 0, wxEXPAND | wxALL, 2);
+			text->SetForegroundColour(*wxWHITE);
+			text->SetBackgroundColour(*wxBLACK);
 		}
 		else
 		{
@@ -76,31 +98,19 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 				{
 					char file = i + 48;
 					auto text = new wxStaticText(this, wxID_ANY, file);
-					grid->Add(text, wxEXPAND | wxALL, wxALIGN_CENTRE_VERTICAL);
+					text->SetForegroundColour(*wxWHITE);
+					grid->Add(text, 0,wxEXPAND | wxALL | wxALIGN_CENTRE_VERTICAL, 2);
 				}
 				else
 				{
 					btn[(i - 1) * nFieldWidth + (j - 1)] = new cBoardSquare(this, 10000 + ((i-1) * nFieldWidth + (j-1)));
-
-					if (j % 2 == 0)
-					{
-						btn[(i - 1) * nFieldWidth + (j - 1)]->SetBackgroundColour(colour2);
-					}
-					else
-					{
-						btn[(i - 1) * nFieldWidth + (j - 1)]->SetBackgroundColour(colour1);
-					}
-
-					grid->Add(btn[(i - 1) * nFieldWidth + (j - 1)], 1, wxEXPAND | wxALL);
+					btn[(i - 1) * nFieldWidth + (j - 1)]->SetBackgroundColour(wxColour(34, 139, 34));
+					grid->Add(btn[(i - 1) * nFieldWidth + (j - 1)], 1, wxEXPAND | wxALL, 1);
 					btn[(i - 1) * nFieldWidth + (j - 1)]->Bind(
 						wxEVT_COMMAND_BUTTON_CLICKED, &cMain::squareClicked, this);
 					nField[(i - 1) * nFieldWidth + (j - 1)] = ' ';
 				}
 			}
-			// switch the colours so the next row is opposite and continues the chessboard pattern
-			wxColour temp = colour1;
-			colour1 = colour2;
-			colour2 = temp;
 		}
 	}
 	// set initial four tiles in center 45 46 54 55
@@ -117,12 +127,19 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 	nField[35] = 'B';
 	nField[36] = 'W';
 
-	infoPanel->SetSizer(infoPanelSizer);
+	infoPanel->SetSizerAndFit(infoPanelSizer);
 	//gamePanel->SetSizer(grid);
-	mainSizer->Add(grid, 1, wxEXPAND | wxALL, 5);
+	mainSizer->Add(grid, 2, wxEXPAND | wxALL, 5);
 	//grid->Layout();
-	mainSizer->Add(infoPanel, 0, wxEXPAND | wxTOP | wxRIGHT | wxBOTTOM, 5);
+	mainSizer->Add(infoPanel, 1, wxEXPAND | wxTOP | wxRIGHT | wxBOTTOM, 5);
 	this->SetSizerAndFit(mainSizer);
+
+	movesList->SetRowLabelSize(infoPanelSizer->GetSize().GetWidth() / 5);
+	movesList->SetColSize(0, infoPanelSizer->GetSize().GetWidth() / 2.5);
+	movesList->SetColSize(1, infoPanelSizer->GetSize().GetWidth() / 2.5);
+	movesList->GetGridWindow()->Bind(wxEVT_MOTION, &cMain::rangeSelect, this);
+	//movesList->SetAutoLayout(true);
+	firstResize = false;
 }
 
 cMain::~cMain()
@@ -130,6 +147,7 @@ cMain::~cMain()
 	delete[]btn;
 	delete[]moves;
 	delete[]nField;
+	//delete[]states;
 }
 
 int cMain::getConfiguration()
@@ -453,7 +471,9 @@ bool cMain::legalMoves()
 				/*s1 << "x * nField + y: " << x * nFieldWidth + y << " | ";
 				OutputDebugStringA(s1.str().c_str());
 				s1.str("");*/
-				// TODO - multithreading
+				// TODO - multithreading or parallelism. probably parallelism because they work on different variables
+				// TODO - but multithreading could be used for the for loops, i think
+				// NOTE - actually, probably won't help. don't think i'm doing enough actions here to justify it
 				sub = checkLeft(x, y);
 				flipList.insert(flipList.end(), sub.begin(), sub.end());
 				sub = checkRight(x, y);
@@ -583,7 +603,6 @@ void cMain::makeMove(int x, int y)
 	/*s1 << "move made: " << x * nFieldWidth + y << " | ";
 	OutputDebugStringA(s1.str().c_str());
 	s1.str("");*/
-	// BUG - these will cause a crash if a player's turn is skipped due to attempting to pop an empty vector
 	if (currentPlayer == 'B' && whiteLegalMoves)
 	{
 		nField[x * nFieldWidth + y] = 'B';
@@ -591,44 +610,36 @@ void cMain::makeMove(int x, int y)
 		currentPlayer = 'W';
 		btn[x * nFieldWidth + y]->setSquareStatus('B');
 		remainingDisks--;
-		moveCount++;
-		moves[movesListCount] = std::to_string(moveCount);
-		movesListCount++;
+		movesList->AppendRows(1);
+		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
+		movesList->SetCellValue(rowCount, 0, wxString(getPosition(x, y)));
 		moves[movesListCount] = getPosition(x, y);
+		strcpy(states[movesListCount], nField);
 		movesListCount++;
-		std::string empty = " ";
-		moves[movesListCount] = empty;
-		movesListCount++;
-		data.push_back(wxVariant(wxString(std::to_string(moveCount))));
-		data.push_back(wxVariant(wxString(getPosition(x, y))));
-		data.push_back(wxVariant(wxString(" ")));
-		movesList->AppendItem(data);
-		//allMoves.push_back(data);
+		moveCount++;
+		
 	}
 	else if (currentPlayer == 'B' && !whiteLegalMoves)
 	{
-		data.pop_back();
-		data.push_back(wxVariant(wxString("N/A")));
-		movesList->AppendItem(data);
-		data.clear();
+		movesList->SetCellValue(rowCount, 1, wxString("N/A"));
+		moveCount++;
+		rowCount++;
+		moves[movesListCount] = "N/A";
+		strcpy(states[movesListCount], nField);
+		movesListCount++;
 		
 		nField[x * nFieldWidth + y] = 'B';
 		btn[x * nFieldWidth + y]->paintNow();
 		currentPlayer = 'W';
 		btn[x * nFieldWidth + y]->setSquareStatus('B');
 		remainingDisks--;
-		moveCount++;
-		moves[movesListCount] = std::to_string(moveCount);
-		movesListCount++;
+		movesList->AppendRows(1);
+		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
+		movesList->SetCellValue(rowCount, 0, wxString(getPosition(x, y)));
 		moves[movesListCount] = getPosition(x, y);
+		strcpy(states[movesListCount], nField);
 		movesListCount++;
-		std::string empty = " ";
-		moves[movesListCount] = empty;
-		movesListCount++;
-		data.push_back(wxVariant(wxString(std::to_string(moveCount))));
-		data.push_back(wxVariant(wxString(getPosition(x, y))));
-		data.push_back(wxVariant(wxString(" ")));
-		movesList->AppendItem(data);
+		moveCount++;
 	}
 	else if (currentPlayer == 'W' && blackLegalMoves)
 	{
@@ -637,30 +648,33 @@ void cMain::makeMove(int x, int y)
 		currentPlayer = 'B';
 		btn[x * nFieldWidth + y]->setSquareStatus('W');
 		remainingDisks--;
-		data.pop_back();
-		data.push_back(wxVariant(wxString(getPosition(x, y))));
-		moves[movesListCount - 1] = getPosition(x, y);
-		//allMoves.pop_back();
-		//allMoves.push_back(data);
-		movesList->DeleteItem(moveCount - reverseCounter++);
-		movesList->AppendItem(data);
-		data.clear();
+		movesList->SetCellValue(rowCount, 1, wxString(getPosition(x, y)));
 		moveCount++;
+		moves[movesListCount] = getPosition(x, y);
+		strcpy(states[movesListCount], nField);
+		movesListCount++;
+		rowCount++;
 	}
 	else if (currentPlayer == 'W' && !blackLegalMoves)
 	{
-		data.push_back(wxVariant(wxString(std::to_string(moveCount))));
-		data.push_back(wxVariant(wxString("N/A")));
+		movesList->AppendRows(1);
+		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
+		moveCount++;
+		movesList->SetCellValue(rowCount, 0, wxString("N/A"));
+		moves[movesListCount] = "N/A";
+		strcpy(states[movesListCount], nField);
+		movesListCount++;
 		
 		nField[x * nFieldWidth + y] = 'W';
 		btn[x * nFieldWidth + y]->paintNow();
 		currentPlayer = 'B';
 		btn[x * nFieldWidth + y]->setSquareStatus('W');
 		remainingDisks--;
-		data.push_back(wxVariant(wxString(getPosition(x, y))));
-		moves[movesListCount - 1] = getPosition(x, y);
-		movesList->AppendItem(data);
-		data.clear();
+		movesList->SetCellValue(rowCount, 1, wxString(getPosition(x, y)));
+		rowCount++;
+		moves[movesListCount] = getPosition(x, y);
+		strcpy(states[movesListCount], nField);
+		movesListCount++;
 		moveCount++;
 	}
 	btn[x * nFieldWidth + y]->Enable(false);
@@ -782,8 +796,6 @@ bool cMain::checkEndGame()
 	return false;
 }
 
-// TODO - seems skip is used wrong. should set it to false for all of these as per the docs
-
 void cMain::squareClicked(wxCommandEvent& evt)
 {
 	// check for legal move
@@ -826,7 +838,6 @@ void cMain::squareClicked(wxCommandEvent& evt)
 		}
 		else
 		{
-			// TODO - set moves list appropriately for skipped turns
 			wxMessageBox("No legal moves. Passing turn to other player.");
 			if (currentPlayer == 'B')
 			{
@@ -841,7 +852,6 @@ void cMain::squareClicked(wxCommandEvent& evt)
 		}
 		break;
 	case 1:			// player/weak ai
-		// TODO - gotta handle this slightly different for the case where a player clicks an invalid square.
 		if (currentPlayer == 'B')
 		{
 			if (legalMoves())
@@ -884,7 +894,6 @@ void cMain::squareClicked(wxCommandEvent& evt)
 			}
 			else
 			{
-				// TODO - set moves list appropriately for skipped turns
 				wxMessageBox("No legal moves. Passing turn to other player.");
 				currentPlayer = 'W';
 				blackLegalMoves = false;
@@ -911,11 +920,47 @@ void cMain::squareClicked(wxCommandEvent& evt)
 		break;
 	case 2:			// weak ai/player
 		break;
-	case 3:			// weak ai/weak ai NOTE - probably don't need this since we are handling it in the other function
-		break;
 	}
 
 	
+	evt.Skip(false);
+}
+
+void cMain::getState(wxGridEvent& evt)
+{	
+	int x = evt.GetRow();
+	int y = evt.GetCol();
+
+	movesList->SetGridCursor(wxGridCellCoords(x, y));
+	//movesList->SetCellBackgroundColour(x, y, wxColour(173, 216, 230));
+	//movesList->Set
+	//movesList->DeselectCell(0, 0);
+	/*movesList->ClearSelection();
+	movesList->SelectRow(x);
+	movesList->SelectCol(y);*/
+
+	strncpy(nField, states[x * rowCount + y], 64);
+	//delete[]nField;
+	//nField = new char(*states[x * rowCount + y]);
+	//nField = states[x * rowCount + y];
+
+	for (int i = 0; i < 64; i++)
+	{
+		//nField[i] = states[x * rowCount + y][i];
+		if (nField[i] == ' ')
+		{
+			btn[i]->setSquareStatus(' ');
+		}
+		else if (nField[i] == 'B')
+		{
+			btn[i]->setSquareStatus('B');
+		}
+		else if (nField[i] == 'W')
+		{
+			btn[i]->setSquareStatus('W');
+		}
+	}
+	this->Refresh();
 	evt.Skip(false);
 }
 
@@ -971,7 +1016,7 @@ void cMain::onMenuNew(wxCommandEvent& evt)
 	moveCount = 0;
 	reverseCounter = 0;
 	movesListCount = 0;
-	movesList->DeleteAllItems();
+	//movesList->DeleteAllItems();
 	// set initial four tiles in center 45 46 54 55
 	for (int i = 0; i < nFieldWidth; i++)
 	{
@@ -1074,9 +1119,7 @@ void cMain::onMenuPSettings(wxCommandEvent& evt)
 	}
 }
 
-// TODO - implement opening a saved game
-// NOTE - we'll need nField, currentPlayer, movesList, moveCount, and remainingDisks
-// NOTE - maybe we can just save the frame like in that one tutorial. wait, no, it isn't quite that simple
+// TODO - configure saving and loading for the new objects we are using with our wxgrid system
 // REVIEW - opening a file that is already loaded causes a crash
 bool cMain::open(wxString filename)
 {
@@ -1105,7 +1148,7 @@ bool cMain::open(wxString filename)
 	//movesList->AppendTextColumn("#");
 	//movesList->AppendTextColumn("Black");
 	//movesList->AppendTextColumn("White");
-	movesList->DeleteAllItems();
+	//movesList->DeleteAllItems();
 	movesListCount = game.getMovesListCount();
 	s1 << movesListCount;
 	OutputDebugStringA(s1.str().c_str());
@@ -1127,7 +1170,7 @@ bool cMain::open(wxString filename)
 		data.push_back(wxVariant(wxString(move)));
 		if ((i+1) % 3 == 0)
 		{
-			movesList->AppendItem(data);
+			//movesList->AppendItem(data);
 			data.clear();
 		}
 	}
@@ -1155,7 +1198,6 @@ bool cMain::open(wxString filename)
 	return true;
 }
 
-// TODO - figure out how to save a game and implement saving
 bool cMain::save(wxString filename)
 {
 	for (int i = 0; i < game.nWidth; i++)
@@ -1163,9 +1205,6 @@ bool cMain::save(wxString filename)
 		for (int j = 0; j < game.nHeight; j++)
 		{
 			char cell = nField[i * game.nWidth + j];
-			// TODO - check if things like this should be changed. well, they probably should, could be fucked now after fixing the hack
-			// TODO - maybe not. wait, maybe yes. x and y are swapped often in computer graphics and in this program. but i don't think
-			// TODO - it matters because we are now handling them properly in the corresponding functions
 			game.setnField(i, j, cell);
 		}
 	}
@@ -1189,4 +1228,30 @@ bool cMain::save(wxString filename)
 	}
 
 	return game.save(filename.wc_str());
+}
+
+void cMain::rangeSelect(wxMouseEvent& evt)
+{
+	evt.Skip(false);
+	/*wxGridCellCoordsArray top = movesList->GetSelectionBlockTopLeft();
+	wxGridCellCoordsArray bottom = movesList->GetSelectionBlockBottomRight();
+
+	for (int i = 0; i < top.Count(); i++)
+	{
+		movesList->ClearSelection();
+	}*/
+}
+
+void cMain::windowResized(wxSizeEvent& evt)
+{
+	CallAfter(&cMain::resize);
+
+	evt.Skip();
+}
+
+void cMain::resize()
+{
+	movesList->SetRowLabelSize(infoPanel->GetSize().GetWidth() / 5);
+	movesList->SetColSize(0, infoPanel->GetSize().GetWidth() / 2.5);
+	movesList->SetColSize(1, infoPanel->GetSize().GetWidth() / 2.5);
 }
