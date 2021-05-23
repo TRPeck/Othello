@@ -2,9 +2,8 @@
 
 #include "cApp.h"
 
-// TODO - comments mafucka!!!
 // TODO - refactor to follow proper coding conventions
-// TODO - general cleanup
+// REVIEW - check controls + their use for cross-platform compatibility
 
 wxBEGIN_EVENT_TABLE(cMain, wxFrame)
 	EVT_MENU(20001, cMain::onMenuNew)
@@ -31,70 +30,94 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 	settings->Append(20005, "Player Settings");
 	menuBar->Append(settings, "Game");
 
-	mainSizer = new wxBoxSizer(wxHORIZONTAL);
+	mainSizer = new wxBoxSizer(wxHORIZONTAL); // sizer to separate board and panel showing the moves/timer
 
 	// NOTE - probably should have the grid inside a panel like this. wasn't working though, possibly due to the size.
 	//wxPanel* gamePanel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(700, 600));
 	infoPanel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(300, 600));
-	infoPanel->SetBackgroundColour(wxColour(100, 200, 100));
+	infoPanel->SetBackgroundColour(*wxBLACK);
 	auto infoPanelSizer = new wxBoxSizer(wxVERTICAL);
 
-	movesList = new wxGrid(infoPanel, wxID_ANY, wxDefaultPosition, wxSize(275, 560));
+	movesList = new wxGrid(infoPanel, wxID_ANY, wxDefaultPosition, wxSize(275, 545));
 	movesList->CreateGrid(0, 2);
 	movesList->SetColLabelValue(0, wxString("Black"));
 	movesList->SetColLabelValue(1, wxString("White"));
-	movesList->EnableEditing(false);
+	movesList->EnableEditing(false);  // set all grid cells to read only so the user can't edit them
 	movesList->SetCellHighlightColour(wxColour(173, 216, 230));
 	movesList->SetCellHighlightPenWidth(3);
-	//movesList->SetCellHighlightPenWidth(0);
 	movesList->Layout();
 
-	// NOTE - wxgrid doesn't seem to expand properly. actually we don't want it to expand. just to fill its space.
 	infoPanelSizer->Add(movesList, 1, wxEXPAND);
 
+	// panel and buttons below movesList to navigate through grid
+	auto gridBtnPanel = new wxPanel(infoPanel, wxID_ANY, wxDefaultPosition, wxSize(275, 45));
+	firstMoveBtn = new wxButton(gridBtnPanel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(75, 50));
+	prevMoveBtn = new wxButton(gridBtnPanel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(75, 50));
+	nextMoveBtn = new wxButton(gridBtnPanel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(75, 50));
+	lastMoveBtn = new wxButton(gridBtnPanel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(75, 50));
+
+	// NOTE - buttons won't expand with bitmaps. gonna have to do that wxImage thing i assume
+	/*firstMoveBtn->SetBitmap(wxBitmap(*firstMoveImg), wxLEFT);
+	prevMoveBtn->SetBitmap(*prevMoveImg, wxLEFT);
+	nextMoveBtn->SetBitmap(*nextMoveImg, wxLEFT);
+	lastMoveBtn->SetBitmap(*lastMoveImg, wxLEFT);*/
+	
+	// sizer for the horizontally laid out buttons
+	auto gridBtnSizer = new wxBoxSizer(wxHORIZONTAL);
+	gridBtnSizer->Add(firstMoveBtn, 1, wxEXPAND );
+	gridBtnSizer->Add(prevMoveBtn, 1, wxEXPAND);
+	gridBtnSizer->Add(nextMoveBtn, 1, wxEXPAND);
+	gridBtnSizer->Add(lastMoveBtn, 1, wxEXPAND);
+	gridBtnPanel->SetSizerAndFit(gridBtnSizer);
+
+	// REVIEW - should maybe have a main vertical sizer, and put buttons/timers below board/movesList, further info below that
+	// add buttons below infoPanel - expand horizontally but not vertically
+	infoPanelSizer->Add(gridBtnPanel, 0, wxEXPAND);
+
+	
+
 	btn = new cBoardSquare*[nFieldWidth * nFieldHeight];
-	// NOTE - with how this sizers elements and the window are sized, things get pretty stretched out when we maximize 
-	auto grid = new wxFlexGridSizer(nFieldWidth + 2, nFieldHeight + 2, 0, 0);
-	for (int i = 1; i < 9; i++)
+	// NOTE - with how this sizers elements and the window are sized, things get pretty stretched out when we maximize
+	// holds our buttons and rank/file labels
+	auto grid = new wxFlexGridSizer(nFieldWidth + 2, nFieldHeight + 2, 0, 0); // we add two to each for rank/file labels
+	
+	for (int i = 1; i < 9; i++)  // make the ranks/files growable so they will expand properly
 	{
 		grid->AddGrowableRow(i, 1);
 		grid->AddGrowableCol(i, 1);
 	}
+	// represents whether the squares are empty or have certain pieces on them
 	nField = new char[nFieldWidth * nFieldHeight];
+	// strings representing the moves made, for use in saving/loading and movesList
 	moves = new std::string[180];
 
 	this->SetBackgroundColour(*wxBLACK);
 
+	// convoluted nested for loops/multiple if statements for the exterior cells of our grid to create the border.
 	for (int i = 0; i < nFieldWidth + 2; i++)
 	{
-		if (i == 0 || i == 9)
+		if (i == 0 || i == 9) // if in the first or last column
 		{
-			auto text = new wxStaticText(this, wxID_ANY, " ");
-			text->SetForegroundColour(*wxWHITE);
-			
-			/*s1 << text->GetFont().GetNativeFontInfoUserDesc();
-			OutputDebugStringA(s1.str().c_str());
-			s1.str("");*/
+			auto text = new wxStaticText(this, wxID_ANY, " ");  // blank for the top corners of the grid
+			text->SetForegroundColour(*wxWHITE);  // sets the font of the text
 			grid->Add(text, 0, wxEXPAND | wxALL, 2);
-			for (int x = 1; x < 9; x++)
+			for (int x = 1; x < 9; x++)  // sets the static text representing the file numbers
 			{
-				int n = x + 96;
+				int n = x + 96;  
 				char rank = n;
 				auto text = new wxStaticText(this, wxID_ANY, rank);
 				text->SetForegroundColour(*wxWHITE);
-				//text->Set
 				grid->Add(text, 0, wxEXPAND | wxALL | wxALIGN_CENTRE_HORIZONTAL, 2);
 			}
-			auto text2 = new wxStaticText(this, wxID_ANY, " ");
+			auto text2 = new wxStaticText(this, wxID_ANY, " "); // corresponding blank entry for the bottom corners of the grid
 			grid->Add(text2, 0, wxEXPAND | wxALL, 2);
 			text->SetForegroundColour(*wxWHITE);
-			text->SetBackgroundColour(*wxBLACK);
 		}
 		else
 		{
 			for (int j = 0; j < nFieldHeight + 2; j++)
 			{
-				if (j == 0 || j == 9)
+				if (j == 0 || j == 9) // if in the first or last row, set the rank letters
 				{
 					char file = i + 48;
 					auto text = new wxStaticText(this, wxID_ANY, file);
@@ -103,6 +126,8 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 				}
 				else
 				{
+					// create buttons representing squares, set colour of the board, bind clicking functionality, and set field
+					// that gives a char representation of the board state
 					btn[(i - 1) * nFieldWidth + (j - 1)] = new cBoardSquare(this, 10000 + ((i-1) * nFieldWidth + (j-1)));
 					btn[(i - 1) * nFieldWidth + (j - 1)]->SetBackgroundColour(wxColour(34, 139, 34));
 					grid->Add(btn[(i - 1) * nFieldWidth + (j - 1)], 1, wxEXPAND | wxALL, 1);
@@ -113,12 +138,12 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 			}
 		}
 	}
-	// set initial four tiles in center 45 46 54 55
-	btn[27]->setSquareStatus('W');
+	// set initial four tiles in center
+	btn[27]->setSquareStatus('W'); // indicates how the square will be drawn
 	btn[28]->setSquareStatus('B');
 	btn[35]->setSquareStatus('B');
 	btn[36]->setSquareStatus('W');
-	btn[27]->Enable(false);
+	btn[27]->Enable(false); // disable the button so it can't be clicked after a disk is placed
 	btn[28]->Enable(false);
 	btn[35]->Enable(false);
 	btn[36]->Enable(false);
@@ -128,18 +153,18 @@ cMain::cMain() : wxFrame(nullptr, wxID_ANY, "Othello", wxPoint(30, 30), wxSize(1
 	nField[36] = 'W';
 
 	infoPanel->SetSizerAndFit(infoPanelSizer);
-	//gamePanel->SetSizer(grid);
 	mainSizer->Add(grid, 2, wxEXPAND | wxALL, 5);
-	//grid->Layout();
 	mainSizer->Add(infoPanel, 1, wxEXPAND | wxTOP | wxRIGHT | wxBOTTOM, 5);
 	this->SetSizerAndFit(mainSizer);
 
+	// NOTE - not sure setting this here does anything
 	movesList->SetRowLabelSize(infoPanelSizer->GetSize().GetWidth() / 5);
 	movesList->SetColSize(0, infoPanelSizer->GetSize().GetWidth() / 2.5);
 	movesList->SetColSize(1, infoPanelSizer->GetSize().GetWidth() / 2.5);
-	movesList->GetGridWindow()->Bind(wxEVT_MOTION, &cMain::rangeSelect, this);
-	//movesList->SetAutoLayout(true);
-	firstResize = false;
+	movesList->GetGridWindow()->Bind(wxEVT_MOTION, &cMain::rangeSelect, this); // bind function that prevents range select to grid
+
+	movesList->AppendRows(1);
+	movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
 }
 
 cMain::~cMain()
@@ -147,9 +172,9 @@ cMain::~cMain()
 	delete[]btn;
 	delete[]moves;
 	delete[]nField;
-	//delete[]states;
 }
 
+// getter and setter for the configuration variable that indicates whether the two players will be ai or human
 int cMain::getConfiguration()
 {
 	return configuration;
@@ -160,14 +185,13 @@ void cMain::setConfiguration(int c)
 	configuration = c;
 }
 
-// actually, i'm an idiot, java version works, this checks up. x and y axis are flipped in game development
 std::vector<int> cMain::checkLeft(int x, int y)
 {
 	std::vector<int> flipList;
 	if (y != 0)
 	{
-		y--; // get the next square to the left of the move
-		while (y >= 0) // while we haven't reached the left side of the board
+		y--; // get the next square in the direction of the move. we only need the succeeding squares, not the one that was clicked
+		while (y >= 0) // while we haven't reached the edge of the board
 		{
 			// add coordinates if they contain the other player's pieces
 			if (y != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
@@ -197,22 +221,21 @@ std::vector<int> cMain::checkLeft(int x, int y)
 	return flipList;
 }
 
+// TODO - comment the peculiarities in these that are fairly distinct from the first one
 std::vector<int> cMain::checkRight(int x, int y)
 {
 	std::vector<int> flipList;
 	if (y != nFieldWidth - 1)
 	{
-		y++; // get the next square to the left of the move
-		while (y <= nFieldWidth - 1) // while we haven't reached the left side of the board
+		y++;
+		while (y <= nFieldWidth - 1)
 		{
-			// add coordinates if they contain the other player's pieces
 			if (y != nFieldWidth - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] !=
 				' ')
 			{
 				flipList.push_back(x * nFieldWidth + y);
 				y++;
 			}
-				// break and clear the sublist if an empty square is encountered
 			else if (nField[x * nFieldWidth + y] == ' ')
 			{
 				flipList.clear();
@@ -223,7 +246,6 @@ std::vector<int> cMain::checkRight(int x, int y)
 				flipList.clear();
 				break;
 			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
 			else if (nField[x * nFieldWidth + y] == currentPlayer)
 			{
 				break;
@@ -238,16 +260,14 @@ std::vector<int> cMain::checkUp(int x, int y)
 	std::vector<int> flipList;
 	if (x != 0)
 	{
-		x--; // get the next square to the left of the move
-		while (x >= 0) // while we haven't reached the left side of the board
+		x--;
+		while (x >= 0)
 		{
-			// add coordinates if they contain the other player's pieces
 			if (x != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
 			{
 				flipList.push_back(x * nFieldWidth + y);
 				x--;
 			}
-				// break and clear the sublist if an empty square is encountered
 			else if (nField[x * nFieldWidth + y] == ' ')
 			{
 				flipList.clear();
@@ -258,7 +278,6 @@ std::vector<int> cMain::checkUp(int x, int y)
 				flipList.clear();
 				break;
 			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
 			else if (nField[x * nFieldWidth + y] == currentPlayer)
 			{
 				break;
@@ -276,13 +295,11 @@ std::vector<int> cMain::checkDown(int x, int y)
 		x++; 
 		while (x <= nFieldHeight - 1) 
 		{
-			// add coordinates if they contain the other player's pieces
 			if (x != nFieldHeight - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
 			{
 				flipList.push_back(x * nFieldWidth + y);
 				x++;
 			}
-				// break and clear the sublist if an empty square is encountered
 			else if (nField[x * nFieldWidth + y] == ' ')
 			{
 				flipList.clear();
@@ -293,7 +310,6 @@ std::vector<int> cMain::checkDown(int x, int y)
 				flipList.clear();
 				break;
 			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
 			else if (nField[x * nFieldWidth + y] == currentPlayer)
 			{
 				break;
@@ -312,14 +328,12 @@ std::vector<int> cMain::checkUpLeft(int x, int y)
 		y--;
 		while (x >= 0 && y >= 0)
 		{
-			// add coordinates if they contain the other player's pieces
 			if (x != 0 && y != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth + y] != ' ')
 			{
 				flipList.push_back(x * nFieldWidth + y);
 				x--;
 				y--;
 			}
-				// break and clear the sublist if an empty square is encountered
 			else if (nField[x * nFieldWidth + y] == ' ')
 			{
 				flipList.clear();
@@ -330,7 +344,6 @@ std::vector<int> cMain::checkUpLeft(int x, int y)
 				flipList.clear();
 				break;
 			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
 			else if (nField[x * nFieldWidth + y] == currentPlayer)
 			{
 				break;
@@ -349,7 +362,6 @@ std::vector<int> cMain::checkUpRight(int x, int y)
 		y++;
 		while (x >= 0 && y <= nFieldWidth - 1)
 		{
-			// add coordinates if they contain the other player's pieces
 			if (x != 0 && y != nFieldWidth - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[x * nFieldWidth
 				+ y] != ' ')
 			{
@@ -357,7 +369,6 @@ std::vector<int> cMain::checkUpRight(int x, int y)
 				x--;
 				y++;
 			}
-				// break and clear the sublist if an empty square is encountered
 			else if (nField[x * nFieldWidth + y] == ' ')
 			{
 				flipList.clear();
@@ -368,7 +379,6 @@ std::vector<int> cMain::checkUpRight(int x, int y)
 				flipList.clear();
 				break;
 			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
 			else if (nField[x * nFieldWidth + y] == currentPlayer)
 			{
 				break;
@@ -387,7 +397,6 @@ std::vector<int> cMain::checkDownLeft(int x, int y)
 		y--;
 		while (x <= nFieldHeight - 1 && y >= 0)
 		{
-			// add coordinates if they contain the other player's pieces
 			if (x != nFieldHeight - 1 && y != 0 && nField[x * nFieldWidth + y] != currentPlayer && nField[x *
 				nFieldWidth + y] != ' ')
 			{
@@ -395,7 +404,6 @@ std::vector<int> cMain::checkDownLeft(int x, int y)
 				x++;
 				y--;
 			}
-				// break and clear the sublist if an empty square is encountered
 			else if (nField[x * nFieldWidth + y] == ' ')
 			{
 				flipList.clear();
@@ -406,7 +414,6 @@ std::vector<int> cMain::checkDownLeft(int x, int y)
 				flipList.clear();
 				break;
 			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
 			else if (nField[x * nFieldWidth + y] == currentPlayer)
 			{
 				break;
@@ -425,7 +432,6 @@ std::vector<int> cMain::checkDownRight(int x, int y)
 		y++;
 		while (x <= nFieldHeight - 1 && y <= nFieldWidth - 1)
 		{
-			// add coordinates if they contain the other player's pieces
 			if (x != nFieldHeight - 1 && y != nFieldWidth - 1 && nField[x * nFieldWidth + y] != currentPlayer && nField[
 				x * nFieldWidth + y] != ' ')
 			{
@@ -433,19 +439,16 @@ std::vector<int> cMain::checkDownRight(int x, int y)
 				x++;
 				y++;
 			}
-				// break and clear the sublist if an empty square is encountered
 			else if (nField[x * nFieldWidth + y] == ' ')
 			{
 				flipList.clear();
 				break;
 			}
-			// clear and break at edge of board if that square isn't the player's
 			else if ((x == nFieldHeight - 1 || y == nFieldWidth - 1) && nField[x * nFieldWidth + y] != currentPlayer)
 			{
 				flipList.clear();
 				break;
 			}
-				// break if one of the player's pieces is encountered but preserve the vector telling us which squares to flip
 			else if (nField[x * nFieldWidth + y] == currentPlayer)
 			{
 				break;
@@ -462,18 +465,14 @@ bool cMain::legalMoves()
 	std::vector<int> sub;
 	std::vector<int> legalMoves;
 
+	// iterate through all the squares of the board
 	for (int x = 0; x < nFieldWidth; x++)
 	{
 		for (int y = 0; y < nFieldHeight; y++)
 		{
 			if (nField[x * nFieldWidth + y] == ' ')
 			{
-				/*s1 << "x * nField + y: " << x * nFieldWidth + y << " | ";
-				OutputDebugStringA(s1.str().c_str());
-				s1.str("");*/
-				// TODO - multithreading or parallelism. probably parallelism because they work on different variables
-				// TODO - but multithreading could be used for the for loops, i think
-				// NOTE - actually, probably won't help. don't think i'm doing enough actions here to justify it
+				// check each direction from each square for potential moves
 				sub = checkLeft(x, y);
 				flipList.insert(flipList.end(), sub.begin(), sub.end());
 				sub = checkRight(x, y);
@@ -502,14 +501,28 @@ bool cMain::legalMoves()
 
 	if (!legalMoves.empty())
 	{
-		/*s1 << "legal moves: ";
-		for (auto i = 0; i < legalMoves.size(); i++)
-		{
-			s1 << legalMoves[i] << " | ";
-			OutputDebugStringA(s1.str().c_str());
-			s1.str("");
-		}*/
+		// if we have legal moves, the player will be able to make one. copy the nfield to save the board before the move
+		strncpy(states[movesListCount], nField, 64);
 		return true;
+	}
+	// if we don't have a legal move, skip the turn and adjust variables and controls accordingly
+	strncpy(states[movesListCount], nField, 64);
+	if (currentPlayer == 'W')
+	{
+		movesList->SetCellValue(rowCount, 1, wxString("N/A"));
+		moveCount++;
+		movesList->AppendRows(1);
+		rowCount++;
+		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
+		moves[movesListCount] = "N/A";
+		movesListCount++;
+	}
+	else
+	{
+		moveCount++;
+		movesList->SetCellValue(rowCount, 0, wxString("N/A"));
+		moves[movesListCount] = "N/A";
+		movesListCount++;
 	}
 	return false;
 }
@@ -576,115 +589,55 @@ bool cMain::checkMove(int x, int y)
 	sub = checkDownRight(x, y);
 	flipList.insert(flipList.end(), sub.begin(), sub.end());
 
-	if (!flipList.empty())
+	if (!flipList.empty())  // if the square that was clicked was a legal move and therefore flips some of the opponent's disks
 	{
-		/*s1 << currentPlayer << ":true ";
-		OutputDebugStringA(s1.str().c_str());
-		s1.str("");*/
 		for (auto i = 0; i < flipList.size(); i++)
 		{
+			// set the field and buttons accordingly
 			nField[flipList[i]] = currentPlayer;
 			btn[flipList[i]]->setSquareStatus(currentPlayer);
 			btn[flipList[i]]->Enable(false);
-			s1 << "disk flipped: " << flipList[i] << " | ";
-			OutputDebugStringA(s1.str().c_str());
-			s1.str("");
 		}
 		return true;
 	}
-	/*s1 << currentPlayer << ":false ";
-	OutputDebugStringA(s1.str().c_str());
-	s1.str("");*/
 	return false;
 }
 
 void cMain::makeMove(int x, int y)
 {
-	/*s1 << "move made: " << x * nFieldWidth + y << " | ";
-	OutputDebugStringA(s1.str().c_str());
-	s1.str("");*/
-	if (currentPlayer == 'B' && whiteLegalMoves)
+	// REVIEW - probably best to move redundant code outside if statement
+	if (currentPlayer == 'B')
 	{
-		nField[x * nFieldWidth + y] = 'B';
-		btn[x * nFieldWidth + y]->paintNow();
-		currentPlayer = 'W';
-		btn[x * nFieldWidth + y]->setSquareStatus('B');
+		nField[x * nFieldWidth + y] = 'B'; 
+		btn[x * nFieldWidth + y]->setSquareStatus('B');  // squareStatus tells the square what colour disk to display
+		btn[x * nFieldWidth + y]->paintNow();  // having changed the status, we now redraw the square
 		remainingDisks--;
-		movesList->AppendRows(1);
-		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
 		movesList->SetCellValue(rowCount, 0, wxString(getPosition(x, y)));
-		moves[movesListCount] = getPosition(x, y);
-		strcpy(states[movesListCount], nField);
+		moves[movesListCount] = getPosition(x, y);  // store the move as a string, for repopulating our movesList grid when loading
 		movesListCount++;
-		moveCount++;
-		
-	}
-	else if (currentPlayer == 'B' && !whiteLegalMoves)
-	{
-		movesList->SetCellValue(rowCount, 1, wxString("N/A"));
-		moveCount++;
-		rowCount++;
-		moves[movesListCount] = "N/A";
-		strcpy(states[movesListCount], nField);
-		movesListCount++;
-		
-		nField[x * nFieldWidth + y] = 'B';
-		btn[x * nFieldWidth + y]->paintNow();
+		moveCount++;  // we keep a different count of moves here starting at 1 for labeling purposes
 		currentPlayer = 'W';
-		btn[x * nFieldWidth + y]->setSquareStatus('B');
-		remainingDisks--;
-		movesList->AppendRows(1);
-		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
-		movesList->SetCellValue(rowCount, 0, wxString(getPosition(x, y)));
-		moves[movesListCount] = getPosition(x, y);
-		strcpy(states[movesListCount], nField);
-		movesListCount++;
-		moveCount++;
 	}
-	else if (currentPlayer == 'W' && blackLegalMoves)
+	else
 	{
 		nField[x * nFieldWidth + y] = 'W';
 		btn[x * nFieldWidth + y]->paintNow();
-		currentPlayer = 'B';
 		btn[x * nFieldWidth + y]->setSquareStatus('W');
 		remainingDisks--;
 		movesList->SetCellValue(rowCount, 1, wxString(getPosition(x, y)));
 		moveCount++;
-		moves[movesListCount] = getPosition(x, y);
-		strcpy(states[movesListCount], nField);
-		movesListCount++;
-		rowCount++;
-	}
-	else if (currentPlayer == 'W' && !blackLegalMoves)
-	{
 		movesList->AppendRows(1);
-		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
-		moveCount++;
-		movesList->SetCellValue(rowCount, 0, wxString("N/A"));
-		moves[movesListCount] = "N/A";
-		strcpy(states[movesListCount], nField);
-		movesListCount++;
-		
-		nField[x * nFieldWidth + y] = 'W';
-		btn[x * nFieldWidth + y]->paintNow();
-		currentPlayer = 'B';
-		btn[x * nFieldWidth + y]->setSquareStatus('W');
-		remainingDisks--;
-		movesList->SetCellValue(rowCount, 1, wxString(getPosition(x, y)));
 		rowCount++;
+		movesList->SetRowLabelValue(rowCount, wxString(std::to_string(moveCount)));
 		moves[movesListCount] = getPosition(x, y);
-		strcpy(states[movesListCount], nField);
 		movesListCount++;
-		moveCount++;
+		currentPlayer = 'B';
 	}
 	btn[x * nFieldWidth + y]->Enable(false);
 	btn[x * nFieldWidth + y]->GetParent()->Refresh();
-	/*s1 << "status: " << nField[x * nFieldWidth + y] << " | ";
-	OutputDebugStringA(s1.str().c_str());
-	s1.str("");*/
 }
 
-void cMain::countDisks()
+void cMain::countDisks()  // count the disks for each player to get score at end of game
 {
 	for (int x = 0; x < nFieldWidth; x++)
 	{
@@ -702,7 +655,7 @@ void cMain::countDisks()
 	}
 }
 
-std::string cMain::getPosition(int x, int y)
+std::string cMain::getPosition(int x, int y)  // get the rank and file from the position in the field
 {
 	std::string position;
 	switch (y)
@@ -759,38 +712,8 @@ bool cMain::checkEndGame()
 				" . DRAW.");
 		}
 
-		// REVIEW - probably be better to not just automatically reset the game here. can't view the results this way.
-		// Reset game
-		/*currentPlayer = 'B';
-		remainingDisks = 60;
-		scoreCount[0] = 0;
-		scoreCount[1] = 0;
-		moveCount = 0;
-		movesList->DeleteAllItems();
-		allMoves.clear();
-		for (int i = 0; i < nFieldWidth; i++)
-		{
-			for (int j = 0; j < nFieldHeight; j++)
-			{
-				nField[i * nFieldWidth + j] = ' ';
-				btn[i * nFieldWidth + j]->setSquareStatus(' ');
-				btn[i * nFieldWidth + j]->Refresh();
-				btn[i * nFieldWidth + j]->Enable(true);
-			}
-		}
-		// set initial four tiles in center 45 46 54 55
-		btn[27]->setSquareStatus('W');
-		btn[28]->setSquareStatus('B');
-		btn[35]->setSquareStatus('B');
-		btn[36]->setSquareStatus('W');
-		btn[27]->Enable(false);
-		btn[28]->Enable(false);
-		btn[35]->Enable(false);
-		btn[36]->Enable(false);
-		nField[27] = 'W';
-		nField[28] = 'B';
-		nField[35] = 'B';
-		nField[36] = 'W';*/
+		// REVIEW - should probably disable the buttons and some functionality at this point
+
 		return true;
 	}
 	return false;
@@ -798,31 +721,29 @@ bool cMain::checkEndGame()
 
 void cMain::squareClicked(wxCommandEvent& evt)
 {
-	// check for legal move
-	// set square status for current player's colour, disable
-	// check surrounding square's for pieces to be flipped, change their square status and redraw
-	// check endgame conditions - we'll check if there are 0 disks, rather than search the board for empty squares
-	// if endgame, display results and reset
-	// if not, switch the current player
+	// TODO - handle move made when in previous game state
+	if (prevState)
+	{
+		
+	}
 
+	// check if the board is full or there are no legal move's for each player
 	checkEndGame();
 
+	// get the coordinates of that square that was clicked from our button's id
 	int x = (evt.GetId() - 10000) / nFieldWidth;
 	int y = (evt.GetId() - 10000) % nFieldWidth;
-
-	/*s1 << "x: " << x << ", y: " << y;
-	OutputDebugStringA(s1.str().c_str());
-	s1.str("");*/
 
 	// TODO - logic for each player1 + player2 configuration
 	switch (configuration)
 	{
 	case 0:			// player/player
-		if (legalMoves())
+		if (legalMoves())  // REVIEW - should probably check this after the opposing player's turn so a square doesn't have to be clicked
 		{
+			// REVIEW - can probably just check nfield here
 			if (btn[x * nFieldWidth + y]->getSquareStatus() == ' ')
 			{
-				if (checkMove(x, y))
+				if (checkMove(x, y))  // make sure a legal square was clicked
 				{
 					makeMove(x, y);
 				}
@@ -830,6 +751,7 @@ void cMain::squareClicked(wxCommandEvent& evt)
 
 			// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
 			// by the other player's move. if this isn't the case, this code will be skipped anyway.
+			// REVIEW - this can probably be handled in the legalMoves function
 			if (!blackLegalMoves || !whiteLegalMoves)
 			{
 				blackLegalMoves = true;
@@ -858,8 +780,6 @@ void cMain::squareClicked(wxCommandEvent& evt)
 			{
 				if (btn[x * nFieldWidth + y]->getSquareStatus() == ' ')
 				{
-					//s1 << checkMove(x, y) << " ";
-					//OutputDebugStringA(s1.str().c_str());
 					if (checkMove(x, y))
 					{
 						makeMove(x, y);
@@ -870,8 +790,6 @@ void cMain::squareClicked(wxCommandEvent& evt)
 				{
 					weakAIMove();
 
-					// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
-					// by the other player's move. if this isn't the case, this code will be skipped anyway.
 					if (!blackLegalMoves || !whiteLegalMoves)
 					{
 						blackLegalMoves = true;
@@ -883,9 +801,6 @@ void cMain::squareClicked(wxCommandEvent& evt)
 					currentPlayer = 'B';
 					whiteLegalMoves = false;
 				}
-
-				// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
-				// by the other player's move. if this isn't the case, this code will be skipped anyway.
 				if (!blackLegalMoves || !whiteLegalMoves)
 				{
 					blackLegalMoves = true;
@@ -902,8 +817,6 @@ void cMain::squareClicked(wxCommandEvent& evt)
 				{
 					weakAIMove();
 
-					// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
-					// by the other player's move. if this isn't the case, this code will be skipped anyway.
 					if (!blackLegalMoves || !whiteLegalMoves)
 					{
 						blackLegalMoves = true;
@@ -919,6 +832,62 @@ void cMain::squareClicked(wxCommandEvent& evt)
 		}
 		break;
 	case 2:			// weak ai/player
+		if (currentPlayer == 'W')
+		{
+			if (legalMoves())
+			{
+				if (btn[x * nFieldWidth + y]->getSquareStatus() == ' ')
+				{
+					if (checkMove(x, y))
+					{
+						makeMove(x, y);
+					}
+				}
+
+				if (legalMoves())
+				{
+					weakAIMove();
+
+					if (!blackLegalMoves || !whiteLegalMoves)
+					{
+						blackLegalMoves = true;
+						whiteLegalMoves = true;
+					}
+				}
+				else
+				{
+					currentPlayer = 'B';
+					whiteLegalMoves = false;
+				}
+				if (!blackLegalMoves || !whiteLegalMoves)
+				{
+					blackLegalMoves = true;
+					whiteLegalMoves = true;
+				}
+			}
+			else
+			{
+				wxMessageBox("No legal moves. Passing turn to other player.");
+				currentPlayer = 'B';
+				whiteLegalMoves = false;
+
+				if (legalMoves())
+				{
+					weakAIMove();
+
+					if (!blackLegalMoves || !whiteLegalMoves)
+					{
+						blackLegalMoves = true;
+						whiteLegalMoves = true;
+					}
+				}
+				else
+				{
+					currentPlayer = 'W';
+					blackLegalMoves = false;
+				}
+			}
+		}
 		break;
 	}
 
@@ -931,33 +900,43 @@ void cMain::getState(wxGridEvent& evt)
 	int x = evt.GetRow();
 	int y = evt.GetCol();
 
+	// NOTE - clicking anywhere on the grid's overall window highlights the first cell. should try and get rid of this
+	// REVIEW - going back to a previous state and clicking a button in an ai game fucks things up
+	// REVIEW - might be better to make this a cell selected event rather than left click for use with the buttons. or maybe not.
+
+	// highlight the cell that was clicked
 	movesList->SetGridCursor(wxGridCellCoords(x, y));
-	//movesList->SetCellBackgroundColour(x, y, wxColour(173, 216, 230));
-	//movesList->Set
-	//movesList->DeselectCell(0, 0);
-	/*movesList->ClearSelection();
-	movesList->SelectRow(x);
-	movesList->SelectCol(y);*/
 
-	strncpy(nField, states[x * rowCount + y], 64);
-	//delete[]nField;
-	//nField = new char(*states[x * rowCount + y]);
-	//nField = states[x * rowCount + y];
+	if (!prevState) // if we are coming from the current move
+	{
+		strncpy(states[movesListCount], nField, 64);  // copy the position as of this move so we can come back to it
+		latestState = movesListCount;  // get the number of the latest move
+		prevState = true;
+	}
+	else if ((x * 2 + y) == latestState) // if we are back on the current move
+	{
+		prevState = false;
+	}
 
-	for (int i = 0; i < 64; i++)
+	strncpy(nField, states[x * 2 + y], 64);  // copy the state of the board at the time of selected move into nfield
+
+	for (int i = 0; i < 64; i++)  // iterate through nfield, set the buttons according to its characters
 	{
 		//nField[i] = states[x * rowCount + y][i];
 		if (nField[i] == ' ')
 		{
 			btn[i]->setSquareStatus(' ');
+			btn[i]->Enable(true);
 		}
 		else if (nField[i] == 'B')
 		{
 			btn[i]->setSquareStatus('B');
+			btn[i]->Enable(false);
 		}
 		else if (nField[i] == 'W')
 		{
 			btn[i]->setSquareStatus('W');
+			btn[i]->Enable(false);
 		}
 	}
 	this->Refresh();
@@ -973,48 +952,29 @@ void cMain::weakAIMove()
 	int x = 0;
 	int y = 0;
 
+	// get an index for a random move from the legal moves
 	int num = rand() % movesVector.size();
 	int move = movesVector[num];
-	/*for (auto i = 0; i < movesVector.size(); i++)
-	{
-		s1 << "move: " << movesVector[i] << " ";
-		OutputDebugStringA(s1.str().c_str());
-		s1.str("\n");
-	}*/
 
-	// s1 << move;
-	// OutputDebugStringA(s1.str().c_str());
-	// s1.str("\n");
-
+	// convert the 1d index into 2d coordinates
 	x = move / nFieldWidth;
 	y = move % nFieldWidth;
 
-	// s1 << "x: " << x << ", y: " << y;
-	// OutputDebugStringA(s1.str().c_str());
-	// s1.str("\n");
-
-	
-	/*if (btn[y * nFieldWidth + x]->getSquareStatus() == ' ')
-	{
-		if (checkMove(x, y))
-		{
-			makeMove(x, y);
-		}
-	}*/
-
+	// we know it's a legal move, but checkmove does part of the move making
 	checkMove(x, y);
 	makeMove(x, y);
 }
 
 void cMain::onMenuNew(wxCommandEvent& evt)
 {
+	// REVIEW - this seems to cause problems and lead to crashes
 	// Reset game
 	currentPlayer = 'B';
 	remainingDisks = 60;
 	scoreCount[0] = 0;
 	scoreCount[1] = 0;
 	moveCount = 0;
-	reverseCounter = 0;
+	//reverseCounter = 0;
 	movesListCount = 0;
 	//movesList->DeleteAllItems();
 	// set initial four tiles in center 45 46 54 55
@@ -1053,9 +1013,6 @@ void cMain::onMenuOpen(wxCommandEvent& evt)
 	                 wxFD_OPEN | wxFD_FILE_MUST_EXIST);
 	if (dlg.ShowModal() == wxID_OK)
 	{
-		//cMain* f = new cMain();
-		//f->open(dlg.GetPath());
-		//f->Show();
 		static_cast<cMain*>(wxGetApp().getFrame())->open(dlg.GetPath());
 		wxGetApp().getFrame()->Refresh();
 	}
@@ -1081,11 +1038,43 @@ void cMain::onMenuExit(wxCommandEvent& evt)
 
 void cMain::onMenuPSettings(wxCommandEvent& evt)
 {
+	// create and open up a new dialog for the player settings
 	settings = new cSettings(wxT("Player Settings"), configuration);
 	settings->Show();
 	evt.Skip(false);
 
 	// TODO - test this
+	if (configuration == 2)
+	{
+		if (currentPlayer == 'B')
+		{
+			if (legalMoves())
+			{
+				weakAIMove();
+
+				// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
+				// by the other player's move. if this isn't the case, this code will be skipped anyway.
+				if (!blackLegalMoves || !whiteLegalMoves)
+				{
+					blackLegalMoves = true;
+					whiteLegalMoves = true;
+				}
+			}
+			else
+			{
+				if (currentPlayer == 'B')
+				{
+					currentPlayer = 'W';
+					blackLegalMoves = false;
+				}
+				else
+				{
+					currentPlayer = 'B';
+					whiteLegalMoves = false;
+				}
+			}
+		}
+	}
 	if (configuration == 3)
 	{
 		while (!checkEndGame())
@@ -1094,8 +1083,6 @@ void cMain::onMenuPSettings(wxCommandEvent& evt)
 			{
 				weakAIMove();
 
-				// set the bools tracking whether each player has legal moves to true for the case where a move is opened up
-				// by the other player's move. if this isn't the case, this code will be skipped anyway.
 				if (!blackLegalMoves || !whiteLegalMoves)
 				{
 					blackLegalMoves = true;
@@ -1143,12 +1130,7 @@ bool cMain::open(wxString filename)
 	currentPlayer = game.getCurrentPlayer();
 	remainingDisks = game.getRemainingDisks();
 	moveCount = game.getMoveCount();
-	reverseCounter = game.getReverseCounter();
-	//movesList = new wxDataViewListCtrl();
-	//movesList->AppendTextColumn("#");
-	//movesList->AppendTextColumn("Black");
-	//movesList->AppendTextColumn("White");
-	//movesList->DeleteAllItems();
+	//reverseCounter = game.getReverseCounter();
 	movesListCount = game.getMovesListCount();
 	s1 << movesListCount;
 	OutputDebugStringA(s1.str().c_str());
@@ -1161,40 +1143,19 @@ bool cMain::open(wxString filename)
 		s1.str("");
 		moves[i] = game.getMovesList(i);
 	}
-	data.clear();
+	//data.clear();
 	for (int i = 0; i < movesListCount; i++)
 	{
 		std::string move = moves[i];
 		s1 << moves[i];
 		OutputDebugStringA(s1.str().c_str());
-		data.push_back(wxVariant(wxString(move)));
+		//data.push_back(wxVariant(wxString(move)));
 		if ((i+1) % 3 == 0)
 		{
 			//movesList->AppendItem(data);
-			data.clear();
+			//data.clear();
 		}
 	}
-	/*int moveNum = allMoves.size();
-	s1 << moveNum;
-	OutputDebugStringA(s1.str().c_str());
-	for (int i = 0; i < moveCount; i++)
-	{
-		allMoves[i] = game.getMovesList(i);
-	}*/
-	/*for (auto& item : allMoves)
-	{
-	 	s1 << item.size();
-		OutputDebugStringA(s1.str().c_str());
-		movesList->AppendItem(item);
-	}*/
-	// for (int i = 0; i < game.nWidth; i++)
-	// {
-	// 	for (int j = 0; j < game.nHeight; j++)
-	// 	{
-	// 		s1 << nField[j * nFieldWidth + i];
-	// 	}
-	// }
-	// OutputDebugStringA(s1.str().c_str());
 	return true;
 }
 
@@ -1212,7 +1173,7 @@ bool cMain::save(wxString filename)
 	game.setCurrentPlayer(currentPlayer);
 	game.setRemainingDisks(remainingDisks);
 	game.setMoveCount(moveCount);
-	game.setReverseCounter(reverseCounter);
+	//game.setReverseCounter(reverseCounter);
 	game.setMovesListCount(movesListCount);
 	s1 << movesListCount;
 	OutputDebugStringA(s1.str().c_str());
@@ -1232,26 +1193,55 @@ bool cMain::save(wxString filename)
 
 void cMain::rangeSelect(wxMouseEvent& evt)
 {
+	// this basically makes it do nothing when trying to select multiple cells of the moveslist grid
 	evt.Skip(false);
-	/*wxGridCellCoordsArray top = movesList->GetSelectionBlockTopLeft();
-	wxGridCellCoordsArray bottom = movesList->GetSelectionBlockBottomRight();
-
-	for (int i = 0; i < top.Count(); i++)
-	{
-		movesList->ClearSelection();
-	}*/
 }
 
 void cMain::windowResized(wxSizeEvent& evt)
 {
-	CallAfter(&cMain::resize);
+	// ui components are resized after a resize event which breaks maximize, so we wait until after this event to call our resize function
+	CallAfter(&cMain::resize);	
 
 	evt.Skip();
 }
 
 void cMain::resize()
 {
-	movesList->SetRowLabelSize(infoPanel->GetSize().GetWidth() / 5);
-	movesList->SetColSize(0, infoPanel->GetSize().GetWidth() / 2.5);
+	movesList->SetRowLabelSize(infoPanel->GetSize().GetWidth() / 5); // set the row label size to 20% of its parent window
+	movesList->SetColSize(0, infoPanel->GetSize().GetWidth() / 2.5); // set the columns' size to 40% of the parent window 
 	movesList->SetColSize(1, infoPanel->GetSize().GetWidth() / 2.5);
+
+	// scale movesList button images, convert to bitmaps, and set to buttons for proper fit when resizing
+	firstMoveBtn->SetBitmap(wxBitmap(firstMoveImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50)));
+	firstMoveBtn->SetBitmapCurrent(firstMoveHoverImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+	firstMoveBtn->SetBitmapPressed(firstMoveClickedImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+	
+	prevMoveBtn->SetBitmap(wxBitmap(prevMoveImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50)));
+	prevMoveBtn->SetBitmapCurrent(prevMoveHoverImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+	prevMoveBtn->SetBitmapPressed(prevMoveClickedImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+
+	nextMoveBtn->SetBitmap(wxBitmap(nextMoveImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50)));
+	nextMoveBtn->SetBitmapCurrent(nextMoveHoverImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+	nextMoveBtn->SetBitmapPressed(nextMoveClickedImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+
+	lastMoveBtn->SetBitmap(wxBitmap(lastMoveImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50)));
+	lastMoveBtn->SetBitmapCurrent(lastMoveHoverImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+	lastMoveBtn->SetBitmapPressed(lastMoveClickedImg->Scale(infoPanel->GetSize().GetWidth() / 4, 50));
+}
+
+// TODO - create appropriate variables to track moves, program functionality, bind to buttons
+void cMain::firstMoveBtnClicked(wxCommandEvent& evt)
+{
+}
+
+void cMain::prevMoveBtnClicked(wxCommandEvent& evt)
+{
+}
+
+void cMain::nextMoveBtnClicked(wxCommandEvent& evt)
+{
+}
+
+void cMain::lastMoveBtnClicked(wxCommandEvent& evt)
+{
 }

@@ -1,15 +1,13 @@
 #include "cBoardSquare.h"
 
-// TODO - comments mafucka!!!
-
 BEGIN_EVENT_TABLE(cBoardSquare, wxButton)
 	EVT_PAINT(cBoardSquare::paintEvent)
 END_EVENT_TABLE()
 
 cBoardSquare::cBoardSquare(wxWindow* parent, wxWindowID id) : wxButton(parent, id)
 {
-	SetMinSize(wxSize(bWidth, bHeight));
-	SetSize(bWidth, bHeight);
+	SetMinSize(wxSize(bWidth, bHeight)); // ensure the board squares don't get any smaller than this
+	SetSize(bWidth, bHeight); // set the initial size of the board squares
 	squareStatus = ' '; // indicates whether the square is empty or has a black or white piece
 }
 
@@ -44,7 +42,7 @@ void cBoardSquare::render(wxDC& dc)
 	{
 		brush.SetColour(wxColour(0, 0, 0)); // black
 		dc.SetBrush(brush);
-		dc.DrawCircle(width/2, height/2, height/2-2);
+		dc.DrawCircle(width/2, height/2, height/2-2); // divide by two so it sets the dimensions dynamically on resize
 	}
 	else if (squareStatus == 'W')
 	{

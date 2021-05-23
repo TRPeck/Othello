@@ -32,6 +32,20 @@
     <ClCompile Include="cMain.cpp" />
     <ClCompile Include="cSettings.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="first_move.png" />
+    <Image Include="first_move_clicked.png" />
+    <Image Include="first_move_hover.png" />
+    <Image Include="last_move.png" />
+    <Image Include="last_move_clicked.png" />
+    <Image Include="last_move_hover.png" />
+    <Image Include="next_move.png" />
+    <Image Include="next_move_clicked.png" />
+    <Image Include="next_move_hover.png" />
+    <Image Include="prev_move.png" />
+    <Image Include="prev_move_clicked.png" />
+    <Image Include="prev_move_hover.png" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>

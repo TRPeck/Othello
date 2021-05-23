@@ -15,9 +15,11 @@ cSettings::cSettings(const wxString& title, int configuration) : wxDialog(nullpt
 	wxStaticBox* box = new wxStaticBox(panel, 10001, wxT("Black"), wxPoint(5, 5), wxSize(240, 150));
 	wxStaticBox* box1 = new wxStaticBox(panel, 10002, wxT("White"), wxPoint(5, 255), wxSize(240, 150));
 
+	// button group which sets the player for player one
 	rb = new wxRadioButton(panel, 10003, wxT("Human"), wxPoint(15, 30), wxDefaultSize, wxRB_GROUP);
 	rb1 = new wxRadioButton(panel, 10004, wxT("Weak AI"), wxPoint(15, 55));
 
+	// button group which sets the player for player two
 	rb2 = new wxRadioButton(panel, 10005, wxT("Human"), wxPoint(15, 280), wxDefaultSize, wxRB_GROUP);
 	rb3 = new wxRadioButton(panel, 10006, wxT("Weak AI"), wxPoint(15, 305));
 
@@ -34,12 +36,12 @@ cSettings::cSettings(const wxString& title, int configuration) : wxDialog(nullpt
 
 	Centre();
 
-	/* 1. human checked human checked
-	   2. human checked weak ai checked
-	   3. weak ai checked human checked
-	   4. weak ai checked weak ai checked */
+	/* 0. human checked human checked
+	   1. human checked weak ai checked
+	   2. weak ai checked human checked
+	   3. weak ai checked weak ai checked */
 
-	switch(configuration)
+	switch(configuration) // sets which radio buttons are checked based on the configuration variable from cMain
 	{
 	case 0:
 		rb->SetValue(true);
@@ -68,21 +70,22 @@ cSettings::~cSettings()
 {
 }
 
+// set the configuration variable in cMain based on selected radio buttons
 void cSettings::okButtonClicked(wxCommandEvent& evt)
 {
-	if (rb->GetValue() && rb2->GetValue())
+	if (rb->GetValue() && rb2->GetValue()) // if human clicked and human clicked
 	{
 		static_cast<cMain*>(wxGetApp().getFrame())->setConfiguration(0);
 	}
-	else if (rb->GetValue() && rb3->GetValue())
+	else if (rb->GetValue() && rb3->GetValue()) // if human clicked and weak ai clicked
 	{
 		static_cast<cMain*>(wxGetApp().getFrame())->setConfiguration(1);
 	}
-	else if (rb1->GetValue() && rb2->GetValue())
+	else if (rb1->GetValue() && rb2->GetValue()) // if weak ai clicked and human clicked
 	{
 		static_cast<cMain*>(wxGetApp().getFrame())->setConfiguration(2);
 	}
-	else if (rb1->GetValue() && rb3->GetValue())
+	else if (rb1->GetValue() && rb3->GetValue()) // if weak ai clicked and weak i clicked
 	{
 		static_cast<cMain*>(wxGetApp().getFrame())->setConfiguration(3);
 	}

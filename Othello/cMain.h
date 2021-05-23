@@ -6,12 +6,9 @@
 #include "cBoardSquare.h"
 #include "cGame.h"
 #include "cSettings.h"
-#include "wx/dataview.h"
-#include <string.h>
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <vector>
 #include <string>
 #include <sstream>
@@ -33,22 +30,37 @@ public:
 	int scoreCount[2];
 	bool blackLegalMoves = true;
 	bool whiteLegalMoves = true;
-	wxGrid* movesList;
 	int rowCount = 0;
-	//wxDataViewListCtrl* movesList;
-	wxVector<wxVariant> data;
-	wxVector<wxVector<wxVariant>> allMoves;
 	std::string* moves = nullptr;
 	int movesListCount = 0;
 	int moveCount = 1;
-	wxMenuBar *menuBar = nullptr;
-	cSettings* settings = nullptr;
+	bool prevState = false;
+	int latestState = 0;
 	int configuration = 0;
-	wxPanel* infoPanel;
-	bool firstResize = true;
-	wxBoxSizer* mainSizer;
 	
-	int reverseCounter = 1; // get the right position for moves list to overwrite
+	wxMenuBar* menuBar = nullptr;
+	cSettings* settings = nullptr;
+	
+	wxPanel* infoPanel;
+	wxBoxSizer* mainSizer;
+	wxGrid* movesList;
+	
+	wxButton* firstMoveBtn;
+	wxButton* prevMoveBtn;
+	wxButton* nextMoveBtn;
+	wxButton* lastMoveBtn;
+	wxImage* firstMoveImg = new wxImage("..\\Othello\\first_move.png", wxBITMAP_TYPE_PNG);
+	wxImage* prevMoveImg = new wxImage("..\\Othello\\prev_move.png", wxBITMAP_TYPE_PNG);
+	wxImage* nextMoveImg = new wxImage("..\\Othello\\next_move.png", wxBITMAP_TYPE_PNG);
+	wxImage* lastMoveImg = new wxImage("..\\Othello\\last_move.png", wxBITMAP_TYPE_PNG);
+	wxImage* firstMoveHoverImg = new wxImage("..\\Othello\\first_move_hover.png", wxBITMAP_TYPE_PNG);
+	wxImage* prevMoveHoverImg = new wxImage("..\\Othello\\prev_move_hover.png", wxBITMAP_TYPE_PNG);
+	wxImage* nextMoveHoverImg = new wxImage("..\\Othello\\next_move_hover.png", wxBITMAP_TYPE_PNG);
+	wxImage* lastMoveHoverImg = new wxImage("..\\Othello\\last_move_hover.png", wxBITMAP_TYPE_PNG);
+	wxImage* firstMoveClickedImg = new wxImage("..\\Othello\\first_move_clicked.png", wxBITMAP_TYPE_PNG);
+	wxImage* prevMoveClickedImg = new wxImage("..\\Othello\\prev_move_clicked.png", wxBITMAP_TYPE_PNG);
+	wxImage* nextMoveClickedImg = new wxImage("..\\Othello\\next_move_clicked.png", wxBITMAP_TYPE_PNG);
+	wxImage* lastMoveClickedImg = new wxImage("..\\Othello\\last_move_clicked.png", wxBITMAP_TYPE_PNG);
 
 	std::ostringstream s1; // for testing purposes (output to the debug console)
 
@@ -89,6 +101,11 @@ private:
 	void rangeSelect(wxMouseEvent& evt);
 	void windowResized(wxSizeEvent& evt);
 	void resize();
+
+	void firstMoveBtnClicked(wxCommandEvent& evt);
+	void prevMoveBtnClicked(wxCommandEvent& evt);
+	void nextMoveBtnClicked(wxCommandEvent& evt);
+	void lastMoveBtnClicked(wxCommandEvent& evt);
 
 	wxDECLARE_EVENT_TABLE();
 };

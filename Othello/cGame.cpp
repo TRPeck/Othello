@@ -15,7 +15,7 @@ cGame::~cGame()
 	delete[]moves;
 }
 
-void cGame::create()
+void cGame::create()  // initial initialization of the pointers/arrays
 {
 	nField = new char[nWidth * nHeight];
 	for (int i = 0; i < nWidth * nHeight; i++)

@@ -48,4 +48,42 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <Image Include="last_move_clicked.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="last_move_hover.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="next_move.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="next_move_clicked.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="next_move_hover.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="prev_move.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="prev_move_clicked.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="prev_move_hover.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="first_move.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="first_move_clicked.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="first_move_hover.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="last_move.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
 </Project>
