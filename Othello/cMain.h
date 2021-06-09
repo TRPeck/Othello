@@ -49,6 +49,8 @@ public:
 	wxButton* prevMoveBtn;
 	wxButton* nextMoveBtn;
 	wxButton* lastMoveBtn;
+	// REVIEW - these seem to be causing memory leaks. also do not need to be pointers. perhaps should declare here and load in constructor.
+	// REVIEW - or just avoid new and pointer designation.
 	wxImage* firstMoveImg = new wxImage("..\\Othello\\first_move.png", wxBITMAP_TYPE_PNG);
 	wxImage* prevMoveImg = new wxImage("..\\Othello\\prev_move.png", wxBITMAP_TYPE_PNG);
 	wxImage* nextMoveImg = new wxImage("..\\Othello\\next_move.png", wxBITMAP_TYPE_PNG);
